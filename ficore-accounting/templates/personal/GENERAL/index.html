@@ -14,19 +14,20 @@
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         <!-- Popular Tools -->
-        <section class="section-card daily-tools">
-            <h3 class="section-title">{{ t('popular_tools', default='Na Yau da Kullum') }}</h3>
-            <div class="quick-actions">
-                {% for tool in tools_for_template %}
-                <a href="{{ tool.url | e }}" class="quick-action-card {{ tool.label_key }}-management text-decoration-none" aria-label="{{ t(tool.label_key, default=tool.label) | e }}">
-                    <div class="card-content">
-                        <i class="bi {{ tool.icon | e }} action-icon"></i>
-                        <div class="action-label">{{ t(tool.label_key, default=tool.label) | e }}</div>
-                    </div>
-                </a>
-                {% endfor %}
-            </div>
-        </section>
+    <section class="section-card daily-planner-tools">
+        <h3 class="section-title">Plan Your Spending</h3>
+        <div class="quick-actions">
+            {% for tool in tools_for_template %}
+            <a href="{{ tool.url | e }}" class="quick-action-card {{ tool.label_key }}-management text-decoration-none" aria-label="{{ t(tool.label_key, default=tool.label) | e }}">
+                <div class="card-content">
+                    <i class="bi {{ tool.icon | e }} action-icon"></i>
+                    <div class="action-label">{{ t(tool.label_key, default=tool.label) | e }}</div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    
 
         <!-- Financial Snapshots -->
         <div class="section-card financial-snapshots">
