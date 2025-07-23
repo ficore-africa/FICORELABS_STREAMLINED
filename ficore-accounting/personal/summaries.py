@@ -227,16 +227,19 @@ def budget_summary():
     """Fetch the latest budget summary for the authenticated user."""
     try:
         db = get_mongo_db()
-        budgets = get_budgets(db, {'user_id': current_user.id})
-        total_budget = 0
-        if budgets:
-            latest_budget = budgets[0]
-            total_budget = (latest_budget.get('income', 0) - 
-                           (latest_budget.get('fixed_expenses', 0) + 
-                            latest_budget.get('variable_expenses', 0)))
+        filter_criteria = {} if is_admin() else {'user_id': str(current_user.id)}
+        latest_budget = get_budgets(db, filter_criteria)
+        if latest_budget:
+            latest_budget = latest_budget[0]
+            income = float(latest_budget.get('income', 0.0))
+            fixed_expenses = float(latest_budget.get('fixed_expenses', 0.0))
+            variable_expenses = float(latest_budget.get('variable_expenses', 0.0))
+            total_budget = income - (fixed_expenses + variable_expenses)
+        else:
+            total_budget = 0.0
         logger.info(f"Fetched budget summary for user {current_user.id}: {total_budget}", 
                     extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-        return jsonify({'totalBudget': float(total_budget)}), 200
+        return jsonify({'totalBudget': total_budget}), 200
     except Exception as e:
         logger.error(f"Error fetching budget summary for user {current_user.id}: {str(e)}", 
                      extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
@@ -250,12 +253,12 @@ def bill_summary():
     try:
         db = get_mongo_db()
         today = date.today()
-        filter_criteria = {'user_id': current_user.id} if not is_admin() else {}
+        filter_criteria = {} if is_admin() else {'user_id': str(current_user.id)}
         bills = get_bills(db, filter_criteria)
         
-        overdue_amount = 0
-        pending_amount = 0
-        unpaid_amount = 0
+        overdue_amount = 0.0
+        pending_amount = 0.0
+        unpaid_amount = 0.0
         
         for bill in bills:
             try:
@@ -265,14 +268,17 @@ def bill_summary():
                 amount = float(bill.get('amount', 0))
                 status = bill.get('status', 'unpaid')
                 
-                if status == 'unpaid':
-                    unpaid_amount += amount
-                    if due_date < today:
-                        overdue_amount += amount
-                    elif due_date >= today:
+                if status in ['unpaid', 'pending', 'overdue']:
+                    if status == 'unpaid':
+                        unpaid_amount += amount
+                        if due_date < today:
+                            overdue_amount += amount
+                        elif due_date >= today:
+                            pending_amount += amount
+                    elif status == 'pending':
                         pending_amount += amount
-                elif status == 'pending':
-                    pending_amount += amount
+                    elif status == 'overdue':
+                        overdue_amount += amount
             except (ValueError, TypeError) as e:
                 logger.warning(f"Invalid bill data for bill {bill.get('_id')}: {str(e)}", 
                               extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
@@ -281,9 +287,9 @@ def bill_summary():
         logger.info(f"Fetched bill summary for user {current_user.id}: overdue={overdue_amount}, pending={pending_amount}, unpaid={unpaid_amount}", 
                     extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
         return jsonify({
-            'overdue_amount': float(overdue_amount),
-            'pending_amount': float(pending_amount),
-            'unpaid_amount': float(unpaid_amount)
+            'overdue_amount': overdue_amount,
+            'pending_amount': pending_amount,
+            'unpaid_amount': unpaid_amount
         }), 200
     except Exception as e:
         logger.error(f"Error fetching bill summary for user {current_user.id}: {str(e)}", 
@@ -465,4 +471,4 @@ def notifications():
     except Exception as e:
         logger.error(f"Error fetching notifications: {str(e)}", 
                      extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-        return jsonify([]), 200  # Return empty array instead of error to avoid client-side issues.
+        return jsonify([]), 200  # Return empty array instead of error to avoid client-side issues
