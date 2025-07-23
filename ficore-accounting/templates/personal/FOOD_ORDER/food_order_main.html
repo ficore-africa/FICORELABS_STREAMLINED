@@ -1,0 +1,419 @@
+{% extends "base.html" %}
+{% block title %}{{ trans('food_order_title', default='Food Order') }}{% endblock %}
+{% block content %}
+<div class="container">
+    {% set tool_name = 'food_order_title' %}
+    {% set tool_icon = 'fa-utensils' %}
+    {% set subtitle = trans('food_order_subtitle', default='Manage your food orders efficiently') %}
+    {% include 'personal/GENERAL/tool_header.html' %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'danger' else 'warning' }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{{ trans('general_close', default='Close') }}"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <ul class="nav nav-tabs mb-4" id="foodOrderTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {{ 'active' if active_tab == 'create-order' else '' }}" id="create-order-tab" data-bs-toggle="tab" data-bs-target="#create-order" type="button" role="tab" aria-controls="create-order" aria-selected="{{ 'true' if active_tab == 'create-order' else 'false' }}">
+                <i class="fas fa-plus"></i> {{ trans('food_order_create', default='Create Food Order') }}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {{ 'active' if active_tab == 'dashboard' else '' }}" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard" type="button" role="tab" aria-controls="dashboard" aria-selected="{{ 'true' if active_tab == 'dashboard' else 'false' }}">
+                <i class="fas fa-list"></i> {{ trans('general_view_all', default='View All') }}
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="foodOrderTabContent">
+        <div class="tab-pane fade {{ 'show active' if active_tab == 'create-order' else '' }}" id="create-order" role="tabpanel" aria-labelledby="create-order-tab">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-utensils"></i> {{ trans('food_order_create', default='Create New Food Order') }}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('personal.food_order.main', tab='create-order') }}" id="foodOrderForm" class="validate-form">
+                        {{ order_form.csrf_token }}
+                        <input type="hidden" name="action" value="create_order">
+                        <div class="mb-3">
+                            <label for="{{ order_form.name.id }}" class="form-label">{{ trans('food_order_name', default='Order Name') }}</label>
+                            {{ order_form.name(class="form-control", placeholder=trans('food_order_name_placeholder', default='e.g., Lunch Order')) }}
+                            <div class="invalid-feedback">{{ trans('food_order_name_invalid', default='Please enter a valid order name') }}</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="{{ order_form.vendor.id }}" class="form-label">{{ trans('food_order_vendor', default='Vendor') }}</label>
+                            {{ order_form.vendor(class="form-control", placeholder=trans('food_order_vendor_placeholder', default='e.g., Local Restaurant')) }}
+                            <div class="invalid-feedback">{{ trans('food_order_vendor_invalid', default='Please enter a valid vendor name') }}</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="{{ order_form.phone.id }}" class="form-label">{{ trans('food_order_phone', default='Phone') }}</label>
+                            {{ order_form.phone(class="form-control phone-input", placeholder=trans('food_order_phone_placeholder', default='e.g., +1234567890')) }}
+                            <div class="invalid-feedback">{{ trans('food_order_phone_invalid', default='Please enter a valid phone number') }}</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="{{ order_form.location.id }}" class="form-label">{{ trans('food_order_location', default='Location') }}</label>
+                            {{ order_form.location(class="form-control", placeholder=trans('food_order_location_placeholder', default='e.g., 123 Main St or Lat,Lon')) }}
+                            <button type="button" class="btn btn-secondary mt-2" onclick="getUserLocation()">{{ trans('food_order_auto_detect', default='Auto Detect Location') }}</button>
+                            <div class="invalid-feedback">{{ trans('food_order_location_invalid', default='Please enter a valid location') }}</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-utensils"></i> {{ trans('food_order_submit', default='Submit Order') }}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade {{ 'show active' if active_tab == 'dashboard' else '' }}" id="dashboard" role="tabpanel" aria-labelledby="dashboard-tab">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-list"></i> {{ trans('food_order_dashboard', default='Food Order Dashboard') }}</h5>
+                </div>
+                <div class="card-body">
+                    {% if latest_order and latest_order.id %}
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h6>{{ trans('food_order_latest_order', default='Latest Food Order') }}</h6>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>{{ trans('food_order_name', default='Order Name') }}:</strong> {{ latest_order.name }}</p>
+                                <p><strong>{{ trans('food_order_vendor', default='Vendor') }}:</strong> {{ latest_order.vendor }}</p>
+                                <p><strong>{{ trans('food_order_phone', default='Phone') }}:</strong> {{ latest_order.phone }}</p>
+                                <p><strong>{{ trans('food_order_location', default='Location') }}:</strong> {{ latest_order.location }}</p>
+                                <p><strong>{{ trans('general_status', default='Status') }}:</strong> {{ trans(latest_order.status, default=latest_order.status) }}</p>
+                                <p><strong>{{ trans('general_date', default='Created At') }}:</strong> {{ latest_order.created_at | format_datetime }}</p>
+                                <div class="mt-2">
+                                    <form method="POST" action="{{ url_for('personal.food_order.main', tab='dashboard') }}" class="d-inline">
+                                        {{ order_form.csrf_token }}
+                                        <input type="hidden" name="action" value="delete_order">
+                                        <input type="hidden" name="order_id" value="{{ latest_order.id }}">
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('{{ trans('food_order_confirm_delete', default='Are you sure you want to delete this order?') | e }}');">{{ trans('food_order_delete', default='Delete Order') }}</button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('personal.food_order.reorder', order_id=latest_order.id) }}" class="d-inline">
+                                        {{ order_form.csrf_token }}
+                                        <button type="submit" class="btn btn-primary btn-sm">{{ trans('food_order_reorder', default='Reorder') }}</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h6>{{ trans('food_order_add_item', default='Add Item to Order') }}</h6>
+                            </div>
+                            <div class="card-body">
+                                <form method="POST" action="{{ url_for('personal.food_order.main', tab='dashboard') }}" id="addItemForm" class="validate-form">
+                                    {{ item_form.csrf_token }}
+                                    <input type="hidden" name="action" value="add_item">
+                                    <input type="hidden" name="order_id" value="{{ latest_order.id }}">
+                                    <div class="mb-3">
+                                        <label for="{{ item_form.name.id }}" class="form-label">{{ trans('food_order_item_name', default='Item Name') }}</label>
+                                        {{ item_form.name(class="form-control", placeholder=trans('food_order_item_name_placeholder', default='e.g., Chicken Burger')) }}
+                                        <div class="invalid-feedback">{{ trans('food_order_item_name_invalid', default='Please enter a valid item name') }}</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="{{ item_form.quantity.id }}" class="form-label">{{ trans('food_order_quantity', default='Quantity') }}</label>
+                                        {{ item_form.quantity(class="form-control number-input", placeholder=trans('food_order_quantity_placeholder', default='e.g., 2'), value='' if item_form.quantity.data is none else item_form.quantity.data) }}
+                                        <div class="invalid-feedback">{{ trans('food_order_quantity_invalid', default='Please enter a valid quantity (e.g., 2)') }}</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="{{ item_form.notes.id }}" class="form-label">{{ trans('food_order_notes', default='Notes') }}</label>
+                                        {{ item_form.notes(class="form-control", placeholder=trans('food_order_notes_placeholder', default='e.g., No onions')) }}
+                                        <div class="invalid-feedback">{{ trans('food_order_notes_invalid', default='Please enter valid notes') }}</div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-sm">{{ trans('food_order_add_item', default='Add Item') }}</button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h6>{{ trans('food_order_items', default='Items') }}</h6>
+                            </div>
+                            <div class="card-body">
+                                {% if items %}
+                                    <div class="table-responsive">
+                                        <table class="table table-striped">
+                                            <thead>
+                                                <tr>
+                                                    <th>{{ trans('food_order_item_name', default='Item Name') }}</th>
+                                                    <th>{{ trans('food_order_quantity', default='Quantity') }}</th>
+                                                    <th>{{ trans('food_order_notes', default='Notes') }}</th>
+                                                    <th>{{ trans('general_actions', default='Actions') }}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for item in items %}
+                                                    <tr>
+                                                        <td>{{ item.name }}</td>
+                                                        <td>{{ item.quantity }}</td>
+                                                        <td>{{ item.notes }}</td>
+                                                        <td>
+                                                            <form method="POST" action="{{ url_for('personal.food_order.main', tab='dashboard') }}" class="d-inline">
+                                                                {{ item_form.csrf_token }}
+                                                                <input type="hidden" name="action" value="delete_item">
+                                                                <input type="hidden" name="item_id" value="{{ item.item_id }}">
+                                                                <input type="hidden" name="order_id" value="{{ latest_order.id }}">
+                                                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('{{ trans('food_order_confirm_delete_item', default='Are you sure you want to delete this item?') | e }}');">{{ trans('general_delete', default='Delete') }}</button>
+                                                            </form>
+                                                        </td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p class="text-center">{{ trans('food_order_no_items', default='No items in this order.') }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="text-center">
+                            <i class="fas fa-utensils fa-3x mb-3 text-muted"></i>
+                            <p>{{ trans('food_order_no_orders', default='No food orders found. Create one to get started.') }}</p>
+                        </div>
+                    {% endif %}
+
+                    {% if orders %}
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h6>{{ trans('food_order_all_orders', default='All Food Orders') }}</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>{{ trans('food_order_name', default='Order Name') }}</th>
+                                                <th>{{ trans('food_order_vendor', default='Vendor') }}</th>
+                                                <th>{{ trans('general_status', default='Status') }}</th>
+                                                <th>{{ trans('general_date', default='Created At') }}</th>
+                                                <th>{{ trans('general_actions', default='Actions') }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for order_id, order in orders.items() %}
+                                                <tr>
+                                                    <td>{{ order.name }}</td>
+                                                    <td>{{ order.vendor }}</td>
+                                                    <td>{{ trans(order.status, default=order.status) }}</td>
+                                                    <td>{{ order.created_at | format_datetime }}</td>
+                                                    <td>
+                                                        <form method="POST" action="{{ url_for('personal.food_order.main', tab='dashboard') }}" class="d-inline">
+                                                            {{ order_form.csrf_token }}
+                                                            <input type="hidden" name="action" value="delete_order">
+                                                            <input type="hidden" name="order_id" value="{{ order.id }}">
+                                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('{{ trans('food_order_confirm_delete', default='Are you sure you want to delete this order?') | e }}');">{{ trans('food_order_delete', default='Delete') }}</button>
+                                                        </form>
+                                                        <form method="POST" action="{{ url_for('personal.food_order.reorder', order_id=order.id) }}" class="d-inline">
+                                                            {{ order_form.csrf_token }}
+                                                            <button type="submit" class="btn btn-primary btn-sm">{{ trans('food_order_reorder', default='Reorder') }}</button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <p class="text-center">{{ trans('food_order_no_orders', default='No food orders found.') }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Translation map for validation
+    const translations = {
+        'name': "{{ trans('food_order_name_invalid', default='Please enter a valid order name') | e }}",
+        'vendor': "{{ trans('food_order_vendor_invalid', default='Please enter a valid vendor name') | e }}",
+        'phone': "{{ trans('food_order_phone_invalid', default='Please enter a valid phone number') | e }}",
+        'location': "{{ trans('food_order_location_invalid', default='Please enter a valid location') | e }}",
+        'item_name': "{{ trans('food_order_item_name_invalid', default='Please enter a valid item name') | e }}",
+        'quantity': "{{ trans('food_order_quantity_invalid', default='Please enter a valid quantity (e.g., 2)') | e }}",
+        'notes': "{{ trans('food_order_notes_invalid', default='Please enter valid notes') | e }}",
+        'quantity_max': "{{ trans('food_order_quantity_max', default='Quantity cannot exceed 100') | e }}",
+        'quantity_positive': "{{ trans('food_order_quantity_positive', default='Quantity must be positive') | e }}",
+        'phone_invalid': "{{ trans('food_order_phone_invalid', default='Please enter a valid phone number') | e }}"
+    };
+
+    // Helper function to format numbers for display
+    function formatForDisplay(value) {
+        if (value === null || value === undefined || isNaN(value)) return '';
+        return Math.floor(value).toLocaleString('en-US', { maximumFractionDigits: 0 });
+    }
+
+    // Helper function to clean input for numeric parsing
+    function cleanForParse(value) {
+        if (!value) return '';
+        return value.replace(/[^0-9]/g, '');
+    }
+
+    // Phone number validation
+    function validatePhoneNumber(value) {
+        const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+        return phoneRegex.test(value);
+    }
+
+    // Apply formatting and validation to number inputs
+    document.querySelectorAll('.number-input').forEach(input => {
+        input.addEventListener('focus', function() {
+            input.value = cleanForParse(input.value);
+        });
+
+        input.addEventListener('blur', function() {
+            let rawValue = cleanForParse(input.value);
+            let numValue = parseInt(rawValue) || 0;
+            if (numValue > 100) {
+                numValue = 100;
+                input.classList.add('is-invalid');
+                document.getElementById(`${input.id}_help`).innerText = translations['quantity_max'];
+            } else if (numValue < 1) {
+                numValue = 1;
+                input.classList.add('is-invalid');
+                document.getElementById(`${input.id}_help`).innerText = translations['quantity_positive'];
+            } else {
+                input.classList.remove('is-invalid');
+                document.getElementById(`${input.id}_help`).innerText = '';
+            }
+            input.value = formatForDisplay(numValue);
+        });
+
+        input.addEventListener('input', function() {
+            let value = input.value;
+            let cleanedValue = value.replace(/[^0-9]/g, '');
+            if (input.value !== cleanedValue) {
+                const start = input.selectionStart;
+                input.value = cleanedValue;
+                input.setSelectionRange(start, start);
+            }
+        });
+    });
+
+    // Validate phone input
+    const phoneInput = document.querySelector('.phone-input');
+    if (phoneInput) {
+        phoneInput.addEventListener('blur', function() {
+            if (!validatePhoneNumber(phoneInput.value)) {
+                phoneInput.classList.add('is-invalid');
+                document.getElementById(`${phoneInput.id}_help`).innerText = translations['phone_invalid'];
+            } else {
+                phoneInput.classList.remove('is-invalid');
+                document.getElementById(`${phoneInput.id}_help`).innerText = '';
+            }
+        });
+    }
+
+    // Form submission validation
+    document.querySelectorAll('.validate-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            let formIsValid = true;
+            form.querySelectorAll('.form-control').forEach(input => {
+                if (input.classList.contains('phone-input') && !validatePhoneNumber(input.value)) {
+                    input.classList.add('is-invalid');
+                    document.getElementById(`${input.id}_help`).innerText = translations['phone_invalid'];
+                    formIsValid = false;
+                } else if (!input.classList.contains('number-input') && !input.value.trim()) {
+                    input.classList.add('is-invalid');
+                    document.getElementById(`${input.id}_help`).innerText = translations[input.id] || translations['required'];
+                    formIsValid = false;
+                } else if (!input.classList.contains('phone-input')) {
+                    input.classList.remove('is-invalid');
+                    document.getElementById(`${input.id}_help`).innerText = '';
+                }
+            });
+            form.querySelectorAll('.number-input').forEach(input => {
+                let rawValue = cleanForParse(input.value);
+                let numValue = parseInt(rawValue) || 0;
+                if (numValue > 100 || numValue < 1) {
+                    input.classList.add('is-invalid');
+                    document.getElementById(`${input.id}_help`).innerText = numValue > 100 ? translations['quantity_max'] : translations['quantity_positive'];
+                    formIsValid = false;
+                } else {
+                    input.classList.remove('is-invalid');
+                    document.getElementById(`${input.id}_help`).innerText = '';
+                }
+                input.value = numValue.toString();
+            });
+            if (!formIsValid) {
+                e.preventDefault();
+                const firstInvalid = form.querySelector('.is-invalid');
+                if (firstInvalid) {
+                    firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    firstInvalid.focus();
+                }
+            }
+        });
+    });
+
+    // Tab persistence
+    const validTabs = ['create-order', 'dashboard'];
+    let savedTab = sessionStorage.getItem('activeFoodOrderTab') || '{{ active_tab }}';
+    if (!validTabs.includes(savedTab)) {
+        savedTab = 'create-order';
+    }
+    if (savedTab) {
+        const tabButton = document.getElementById(`${savedTab}-tab`);
+        if (tabButton) {
+            const bsTab = new bootstrap.Tab(tabButton);
+            bsTab.show();
+        }
+    }
+
+    document.querySelectorAll('#foodOrderTabs .nav-link').forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function(e) {
+            const activeTabId = e.target.id.replace('-tab', '');
+            if (validTabs.includes(activeTabId)) {
+                sessionStorage.setItem('activeFoodOrderTab', activeTabId);
+                const url = new URL(window.location);
+                url.searchParams.set('tab', activeTabId);
+                window.history.replaceState({}, '', url);
+            }
+        });
+    });
+
+    // Geolocation
+    window.getUserLocation = async function() {
+        try {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    async (position) => {
+                        const location = `${position.coords.latitude},${position.coords.longitude}`;
+                        document.getElementById('{{ order_form.location.id }}').value = location;
+                        const response = await fetch('{{ url_for("personal.food_order.get_nearest_vendor") }}?location=' + encodeURIComponent(location));
+                        const data = await response.json();
+                        if (data.vendor) {
+                            document.getElementById('{{ order_form.vendor.id }}').value = data.vendor;
+                        } else {
+                            alert('{{ trans("food_order_no_vendors", default="No vendors found nearby") | e }}');
+                        }
+                    },
+                    (error) => {
+                        console.error('Error getting location:', error);
+                        alert('{{ trans("food_order_location_error", default="Unable to auto-detect location. Please enter manually.") | e }}');
+                    }
+                );
+            } else {
+                alert('{{ trans("food_order_geolocation_unsupported", default="Geolocation is not supported by this browser.") | e }}');
+            }
+        } catch (error) {
+            console.error('Error in getUserLocation:', error);
+            alert('{{ trans("general_error", default="An error occurred") | e }}');
+        }
+    };
+});
+</script>
+{% endblock %}

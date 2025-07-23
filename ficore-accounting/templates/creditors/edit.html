@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ t('creditors_edit_what_you_owe', default='Edit What You Owe') }} - FiCore{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <div class="page-title">
+        <h1>{{ t('creditors_edit_what_you_owe', default='Edit What You Owe') }}</h1>
+        <small class="subtext">{{ t('creditors_what_you_owe_subtext', default='Kuɗin da Mutane ke Bin Ka') }}</small>
+    </div>
+    <form action="{{ url_for('creditors.edit', id=creditor._id) }}" method="POST" class="row g-3">
+        {{ form.hidden_tag() }}
+        <div class="col-12">
+            <label for="name" class="form-label">{{ t('creditors_creditor_name', default='Creditor Name') }}</label>
+            {{ form.name(class="form-control", required=True) }}
+            {% if form.name.errors %}
+                <p class="text-danger mt-1">{{ form.name.errors[0] }}</p>
+            {% endif %}
+        </div>
+        <div class="col-12">
+            <label for="contact" class="form-label">{{ t('general_contact', default='Contact') }}</label>
+            {{ form.contact(class="form-control") }}
+            {% if form.contact.errors %}
+                <p class="text-danger mt-1">{{ form.contact.errors[0] }}</p>
+            {% endif %}
+        </div>
+        <div class="col-12">
+            <label for="amount_owed" class="form-label">{{ t('creditors_amount_owed', default='Amount Owed') }}</label>
+            {{ form.amount_owed(class="form-control", type="number", step="0.01", min=0, required=True) }}
+            {% if form.amount_owed.errors %}
+                <p class="text-danger mt-1">{{ form.amount_owed.errors[0] }}</p>
+            {% endif %}
+        </div>
+        <div class="col-12">
+            <label for="description" class="form-label">{{ t('general_description', default='Description') }}</label>
+            {{ form.description(class="form-control") }}
+            {% if form.description.errors %}
+                <p class="text-danger mt-1">{{ form.description.errors[0] }}</p>
+            {% endif %}
+        </div>
+        <div class="col-12">
+            <button type="submit" class="btn btn-primary w-100">{{ t('general_save', default='Save') }}</button>
+        </div>
+        <div class="col-12">
+            <a href="{{ url_for('creditors.index') }}" class="btn btn-secondary w-100">{{ t('general_back', default='Back') }}</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

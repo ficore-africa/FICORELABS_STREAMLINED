@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ t('debtors_edit_title', default='Edit What They Owe You') }} - FiCore{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <div class="page-title">
+        <h1>{{ t('debtors_edit_title', default='Edit What They Owe You') }}</h1>
+        <small class="subtext">{{ t('debtors_subtitle', default='Kuɗin da Kake Bin Wasu') }}</small>
+    </div>
+    <form action="{{ url_for('debtors.edit', id=debtor._id) }}" method="POST" class="row g-3">
+        {{ form.hidden_tag() }}
+        <div class="col-12">
+            <label for="name" class="form-label">{{ t('general_name', default='Name') }}</label>
+            {{ form.name(class="form-control", required=True) }}
+            {% if form.name.errors %}
+                <p class="text-danger mt-1">{{ form.name.errors[0] }}</p>
+            {% endif %}
+        </div>
+        <div class="col-12">
+            <label for="contact" class="form-label">{{ t('general_contact', default='Contact') }}</label>
+            {{ form.contact(class="form-control") }}
+            {% if form.contact.errors %}
+                <p class="text-danger mt-1">{{ form.contact.errors[0] }}</p>
+            {% endif %}
+        </div>
+        <div class="col-12">
+            <label for="amount_owed" class="form-label">{{ t('general_amount', default='Amount') }}</label>
+            {{ form.amount_owed(class="form-control", type="number", step="0.01", required=True) }}
+            {% if form.amount_owed.errors %}
+                <p class="text-danger mt-1">{{ form.amount_owed.errors[0] }}</p>
+            {% endif %}
+        </div>
+        <div class="col-12">
+            <label for="description" class="form-label">{{ t('general_description', default='Description') }}</label>
+            {{ form.description(class="form-control") }}
+            {% if form.description.errors %}
+                <p class="text-danger mt-1">{{ form.description.errors[0] }}</p>
+            {% endif %}
+        </div>
+        <div class="col-12">
+            <button type="submit" class="btn btn-primary w-100">{{ t('general_save', default='Save') }}</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

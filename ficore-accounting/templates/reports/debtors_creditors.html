@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "_ficore_report_header.html" import ficore_report_header %}
+{% block title %}{{ t('reports_debtors_creditors', default='Debtors/Creditors Report') }} - FiCore{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    {{ ficore_report_header(current_user) }}
+    <div class="page-title">
+        <h1>{{ t('reports_debtors_creditors', default='Debtors/Creditors Report') }}</h1>
+        <small class="subtext">{{ t('reports_subtitle', default='Rahoton Kasuwanci') }}</small>
+    </div>
+    <form action="{{ url_for('reports.debtors_creditors') }}" method="POST" class="row g-3 mb-4">
+        {{ form.hidden_tag() }}
+        <div class="col-12 col-md-4">
+            <label for="start_date" class="form-label">{{ t('reports_start_date', default='Start Date') }}</label>
+            {{ form.start_date(class="form-control", type="date") }}
+            {% if form.start_date.errors %}
+                <p class="text-danger mt-1">{{ form.start_date.errors[0] }}</p>
+            {% endif %}
+        </div>
+        <div class="col-12 col-md-4">
+            <label for="end_date" class="form-label">{{ t('reports_end_date', default='End Date') }}</label>
+            {{ form.end_date(class="form-control", type="date") }}
+            {% if form.end_date.errors %}
+                <p class="text-danger mt-1">{{ form.end_date.errors[0] }}</p>
+            {% endif %}
+        </div>
+        <div class="col-12 col-md-4">
+            <label for="record_type" class="form-label">{{ t('general_type', default='Type') }}</label>
+            {{ form.record_type(class="form-control") }}
+            {% if form.record_type.errors %}
+                <p class="text-danger mt-1">{{ form.record_type.errors[0] }}</p>
+            {% endif %}
+        </div>
+        <div class="col-12 d-flex gap-2">
+            <button type="submit" name="format" value="html" class="btn btn-primary">{{ t('general_view', default='View') }}</button>
+            <button type="submit" name="format" value="pdf" class="btn btn-success">{{ t('general_download_pdf', default='Download PDF') }}</button>
+            <button type="submit" name="format" value="csv" class="btn btn-success">{{ t('general_download_csv', default='Download CSV') }}</button>
+        </div>
+    </form>
+    {% if records|length > 0 %}
+        <div class="table-responsive">
+            <table class="table table-striped table-bordered">
+                <thead class="table-light">
+                    <tr>
+                        <th>{{ t('general_date', default='Date') }}</th>
+                        <th>{{ t('general_name', default='Name') }}</th>
+                        <th>{{ t('general_type', default='Type') }}</th>
+                        <th>{{ t('general_amount_owed', default='Amount Owed') }}</th>
+                        <th>{{ t('general_description', default='Description') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records %}
+                        <tr>
+                            <td data-label="{{ t('general_date', default='Date') }}">{{ format_date(record.created_at) }}</td>
+                            <td data-label="{{ t('general_name', default='Name') }}">{{ record.name }}</td>
+                            <td data-label="{{ t('general_type', default='Type') }}">{{ t(record.type, default=record.type) }}</td>
+                            <td data-label="{{ t('general_amount_owed', default='Amount Owed') }}">{{ format_currency(record.amount_owed) }}</td>
+                            <td data-label="{{ t('general_description', default='Description') }}">{{ record.description or '-' }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="text-center py-5">
+            <p class="text-muted">{{ t('reports_no_records', default='No records found') }}</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block title %}{{ t('general_login', default='Login') }}{% endblock %}
+{% block content %}
+<div class="container my-5">
+    <h1 class="text-center mb-4" id="login-form-title">{{ t('general_login', default='Login') | escape }}</h1>
+    <div class="card mx-auto" style="max-width: 400px;">
+        <div class="card-body">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="alert alert-{{ messages[0][1] }} alert-dismissible fade show" role="alert">
+                        {{ messages[0][0] | escape }}
+                        {% if messages[0][1] in ['danger', 'error'] %}
+                            <p>{{ t('general_check_credentials', default='Please ensure your username and password are correct. If you just registered, use the exact username and email you provided.') | escape }}</p>
+                        {% endif %}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{{ t('general_close', default='Close') | escape }}"></button>
+                    </div>
+                {% endif %}
+            {% endwith %}
+            <form class="validate-form needs-validation" method="POST" action="{{ url_for('users.login') }}" novalidate aria-labelledby="login-form-title">
+                {{ form.hidden_tag() }}
+                <div class="form-group mb-3">
+                    <label class="form-label" for="username">{{ t('general_username', default='Username') | escape }}</label>
+                    {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else ""), value=form.username.data or '', required=True, id="username", **{"aria-describedby": "usernameFeedback" if form.username.errors else "", "aria-required": "true"}) | safe }}
+                    {% if form.username.errors %}
+                        <div id="usernameFeedback" class="invalid-feedback" role="alert">
+                            {% for error in form.username.errors %}
+                                {{ error | escape }}<br>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="form-group mb-3 position-relative">
+                    <label class="form-label" for="password">{{ t('general_password', default='Password') | escape }}</label>
+                    {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), required=True, id="password", **{"aria-describedby": "passwordFeedback" if form.password.errors else "", "aria-required": "true"}) | safe }}
+                    <span class="password-toggle" onclick="togglePassword('password', 'toggle-password-icon')" role="button" aria-label="{{ t('general_show_password', default='Show password') | escape }}" tabindex="0">
+                        <i class="bi bi-eye" id="toggle-password-icon" aria-hidden="true"></i>
+                    </span>
+                    {% if form.password.errors %}
+                        <div id="passwordFeedback" class="invalid-feedback" role="alert">
+                            {% for error in form.password.errors %}
+                                {{ error | escape }}<br>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="text-center">
+                    <button type="submit" class="btn btn-primary" aria-label="{{ t('general_login', default='Login') | escape }}">{{ t('general_login', default='Login') | escape }}</button>
+                </div>
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('users.forgot_password') | escape }}" aria-label="{{ t('general_forgot_password', default='Forgot Password?') | escape }}">{{ t('general_forgot_password', default='Forgot Password?') | escape }}</a>
+                    <br>
+                    <a href="{{ url_for('users.signup') | escape }}" aria-label="{{ t('general_create_account', default='Create an Account') | escape }}">{{ t('general_create_account', default='Create an Account') | escape }}</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+function togglePassword(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    const isPassword = input.type === 'password';
+    input.type = isPassword ? 'text' : 'password';
+    icon.classList.toggle('bi-eye', isPassword);
+    icon.classList.toggle('bi-eye-slash', !isPassword);
+    icon.parentElement.setAttribute('aria-label', isPassword ? '{{ t("general_hide_password", default="Hide password") | escape }}' : '{{ t("general_show_password", default="Show password") | escape }}');
+}
+
+(function () {
+    'use strict';
+    const forms = document.querySelectorAll('.needs-validation');
+    Array.from(forms).forEach(form => {
+        form.addEventListener('submit', event => {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        }, false);
+
+        const passwordToggle = form.querySelector('.password-toggle');
+        passwordToggle.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                togglePassword('password', 'toggle-password-icon');
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

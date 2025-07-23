@@ -1,0 +1,1177 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if request.endpoint == 'agents_bp.agent_portal' %}
+        {{ t('agents_dashboard_title', default='Agent Dashboard') }} - FiCore
+    {% elif request.endpoint == 'agents_bp.assist_trader_records' %}
+        {{ t('agents_assist_trader_title', default='Assist Trader Records') }} - FiCore
+    {% elif request.endpoint == 'agents_bp.generate_trader_report' %}
+        {{ t('agents_trader_report_title', default='Trader Report') }} - FiCore
+    {% elif request.endpoint == 'agents_bp.manage_credits' %}
+        {{ t('agents_manage_credits_title', default='Manage Credits') }} - FiCore
+    {% elif request.endpoint == 'agents_bp.recent_activity' %}
+        {{ t('agents_my_activity_title', default='My Activity') }} - FiCore
+    {% elif request.endpoint == 'agents_bp.register_trader' %}
+        {{ t('agents_register_trader_title', default='Register Trader') }} - FiCore
+    {% elif request.endpoint == 'agents_bp.created_traders' %}
+        {{ t('agents_created_traders_title', default='Created Traders') }} - FiCore
+    {% else %}
+        {{ t('agents_dashboard_title', default='Agent Dashboard') }} - FiCore
+    {% endif %}
+{% endblock %}
+
+{% macro page_header(title, show_back_button=true) %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ t(title, default=title|replace('_', ' ')|title) }}</h1>
+    {% if show_back_button %}
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('agents_bp.agent_portal') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>{{ t('general_back_to_dashboard', default='Back to Dashboard') }}
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% macro trader_info(trader) %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">{{ t('agents_trader_information', default='Trader Information') }}</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>{{ t('general_username', default='Username') }}:</strong> {{ trader._id }}</p>
+                        <p><strong>{{ t('general_email', default='Email') }}:</strong> {{ trader.email }}</p>
+                        <p><strong>{{ t('general_business_name', default='Business Name') }}:</strong> 
+                           {{ trader.business_details.name if trader.business_details else 'N/A' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>{{ t('general_phone_number', default='Phone Number') }}:</strong> 
+                           {{ trader.business_details.phone_number if trader.business_details else 'N/A' }}</p>
+                        <p><strong>{{ t('general_industry', default='Industry') }}:</strong> 
+                           {{ trader.business_details.industry if trader.business_details else 'N/A' }}</p>
+                        <p><strong>{{ t('agents_ficore_credit_balance', default='Ficore Credit Balance') }}:</strong> 
+                           {{ trader.ficore_credit_balance or 0 }} FCs</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro quick_actions(trader_id=none) %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">{{ t('general_quick_actions', default='Quick Actions') }}</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% if trader_id %}
+                    <div class="col-md-3 mb-2">
+                        <a href="{{ url_for('debtors.add') }}?trader_id={{ trader_id }}" class="btn btn-success w-100">
+                            <i class="bi bi-person-plus me-2"></i>{{ t('debtors_add_debtor', default='Add Debtor') }}
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{{ url_for('creditors.add') }}?trader_id={{ trader_id }}" class="btn btn-warning w-100">
+                            <i class="bi bi-person-dash me-2"></i>{{ t('creditors_add_creditor', default='Add Creditor') }}
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{{ url_for('receipts.add') }}?trader_id={{ trader_id }}" class="btn btn-info w-100">
+                            <i class="bi bi-arrow-down-circle me-2"></i>{{ t('receipts_add_receipt', default='Add Receipt') }}
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{{ url_for('payments.add') }}?trader_id={{ trader_id }}" class="btn btn-danger w-100">
+                            <i class="bi bi-arrow-up-circle me-2"></i>{{ t('payments_add_payment', default='Add Payment') }}
+                        </a>
+                    </div>
+                    {% else %}
+                    <div class="col-md-3 mb-2">
+                        <a href="{{ url_for('agents_bp.register_trader') }}" class="btn btn-primary w-100">
+                            <i class="bi bi-person-plus me-2"></i>{{ t('agents_register_new_trader', default='Register New Trader') }}
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{{ url_for('agents_bp.manage_credits') }}" class="btn btn-success w-100">
+                            <i class="bi bi-coin me-2"></i>{{ t('agents_submit_credit_request', default='Submit Credit Request') }}
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{{ url_for('agents_bp.recent_activity') }}" class="btn btn-info w-100">
+                            <i class="bi bi-activity me-2"></i>{{ t('agents_view_my_activity', default='View My Activity') }}
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="{{ url_for('settings.profile') }}" class="btn btn-outline-secondary w-100">
+                            <i class="bi bi-gear me-2"></i>{{ t('settings_title', default='Settings') }}
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Agent Sidebar -->
+        <nav class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+            <div class="position-sticky pt-3">
+                <div class="text-center mb-4">
+                    <img src="{{ url_for('static', filename='img/ficore_records_logo.png') }}" alt="FiCore Logo" class="img-fluid mb-2" style="max-height: 60px;">
+                    <h6 class="text-muted">{{ t('agents_portal', default='Agent Portal') }}</h6>
+                    <small class="text-muted">{{ current_user.display_name }}</small>
+                </div>
+                
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'agents_bp.agent_portal' %}active{% endif %}" href="{{ url_for('agents_bp.agent_portal') }}">
+                            <i class="bi bi-speedometer2 me-2"></i>
+                            {{ t('agents_dashboard_title', default='Dashboard') }}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'agents_bp.register_trader' %}active{% endif %}" href="{{ url_for('agents_bp.register_trader') }}">
+                            <i class="bi bi-person-plus me-2"></i>
+                            {{ t('agents_register_trader', default='Register Trader') }}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'agents_bp.created_traders' %}active{% endif %}" href="{{ url_for('agents_bp.created_traders') }}">
+                            <i class="bi bi-people me-2"></i>
+                            {{ t('agents_created_traders_title', default='Created Traders') }}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'agents_bp.manage_credits' %}active{% endif %}" href="{{ url_for('agents_bp.manage_credits') }}">
+                            <i class="bi bi-coin me-2"></i>
+                            {{ t('agents_manage_credits_title', default='Manage Credits') }}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'agents_bp.recent_activity' %}active{% endif %}" href="{{ url_for('agents_bp.recent_activity') }}">
+                            <i class="bi bi-activity me-2"></i>
+                            {{ t('agents_my_activity_title', default='My Activity') }}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('settings.profile') }}">
+                            <i class="bi bi-gear me-2"></i>
+                            {{ t('settings_title', default='Settings') }}
+                        </a>
+                    </li>
+                    <li class="nav-item mt-3">
+                        <a class="nav-link text-danger" href="{{ url_for('users.logout') }}">
+                            <i class="bi bi-box-arrow-right me-2"></i>
+                            {{ t('general_logout', default='Logout') }}
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- Main content -->
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            {% if request.endpoint == 'agents_bp.agent_portal' %}
+                {{ page_header('agents_dashboard_title') }}
+
+                <!-- Performance Metrics -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title text-primary">{{ t('agents_traders_registered', default='Traders Registered') }}</h5>
+                                <h2 class="card-text" id="traders-registered">{{ traders_registered }}</h2>
+                                <small class="text-muted">{{ t('agents_total_registered', default='Total registered') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title text-success">{{ t('agents_credit_requests_today', default='Credit Requests Today') }}</h5>
+                                <h2 class="card-text" id="credit-requests-today">{{ credit_requests_today }}</h2>
+                                <small class="text-muted">{{ t('agents_requests_today', default='Requests today') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title text-info">{{ t('agents_assisted_traders', default='Assisted Traders') }}</h5>
+                                <h2 class="card-text">{{ assisted_traders|length }}</h2>
+                                <small class="text-muted">{{ t('agents_currently_assisting', default='Currently assisting') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title text-warning">{{ t('agents_recent_activities', default='Recent Activities') }}</h5>
+                                <h2 class="card-text">{{ recent_activities|length }}</h2>
+                                <small class="text-muted">{{ t('agents_last_10_activities', default='Last 10 activities') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{ quick_actions() }}
+
+                <!-- Assisted Traders -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">{{ t('agents_assisted_traders', default='Assisted Traders') }}</h5>
+                            </div>
+                            <div class="card-body">
+                                {% if assisted_traders %}
+                                    <div class="list-group list-group-flush">
+                                        {% for trader in assisted_traders %}
+                                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <h6 class="mb-1">{{ trader.business_details.name if trader.business_details else trader._id }}</h6>
+                                                <small class="text-muted">{{ trader._id }} • {{ trader.email }}</small>
+                                            </div>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{{ url_for('agents_bp.assist_trader_records', trader_id=trader._id) }}" 
+                                                   class="btn btn-outline-primary btn-sm"
+                                                   data-bs-toggle="tooltip" 
+                                                   title="{{ t('agents_view_records', default='View Records') }}">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                                <a href="{{ url_for('agents_bp.generate_trader_report', trader_id=trader._id) }}" 
+                                                   class="btn btn-outline-success btn-sm"
+                                                   data-bs-toggle="tooltip" 
+                                                   title="{{ t('agents_generate_report', default='Generate Report') }}">
+                                                    <i class="bi bi-file-earmark-text"></i>
+                                                </a>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted text-center">{{ t('agents_no_assisted_traders', default='No traders currently being assisted') }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recent Activities -->
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">{{ t('agents_recent_activities', default='Recent Activities') }}</h5>
+                            </div>
+                            <div class="card-body">
+                                {% if recent_activities %}
+                                    <div class="list-group list-group-flush">
+                                        {% for activity in recent_activities %}
+                                        <div class="list-group-item">
+                                            <div class="d-flex w-100 justify-content-between">
+                                                <h6 class="mb-1">
+                                                    {% if activity.activity_type == 'trader_registration' %}
+                                                        <i class="bi bi-person-plus text-primary me-1"></i>{{ t('agents_registered_trader', default='Registered Trader') }}
+                                                    {% elif activity.activity_type == 'credit_request' %}
+                                                        <i class="bi bi-coin text-success me-1"></i>{{ t('agents_submitted_credit_request', default='Submitted Credit Request') }}
+                                                    {% elif activity.activity_type == 'report_generation' %}
+                                                        <i class="bi bi-file-earmark-text text-info me-1"></i>{{ t('agents_generated_report', default='Generated Report') }}
+                                                    {% else %}
+                                                        <i class="bi bi-activity text-secondary me-1"></i>{{ activity.activity_type }}
+                                                    {% endif %}
+                                                </h6>
+                                                <small>{{ format_date(activity.timestamp) }}</small>
+                                            </div>
+                                            <p class="mb-1">
+                                                {% if activity.trader_id %}
+                                                    {{ t('agents_for_trader', default='For trader') }}: <strong>{{ activity.trader_id }}</strong>
+                                                {% endif %}
+                                                {% if activity.details and activity.details.amount %}
+                                                    • {{ format_currency(activity.details.amount) }} FCs
+                                                {% endif %}
+                                            </p>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted text-center">{{ t('agents_no_recent_activities', default='No recent activities') }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            {% elif request.endpoint == 'agents_bp.assist_trader_records' %}
+                {{ page_header('agents_assist_trader_title') }}
+                {{ trader_info(trader) }}
+                {{ quick_actions(trader._id) }}
+
+                <!-- Recent Records Overview -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">{{ t('agents_recent_debtors', default='Recent Debtors') }}</h5>
+                            </div>
+                            <div class="card-body">
+                                {% if recent_debtors %}
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>{{ t('general_name', default='Name') }}</th>
+                                                    <th>{{ t('general_amount_owed', default='Amount Owed') }}</th>
+                                                    <th>{{ t('general_date', default='Date') }}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for debtor in recent_debtors %}
+                                                <tr>
+                                                    <td>{{ debtor.name }}</td>
+                                                    <td>{{ format_currency(debtor.amount_owed) }}</td>
+                                                    <td>{{ format_date(debtor.created_at) }}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">{{ t('debtors_no_recent_debtors', default='No recent debtors') }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">{{ t('agents_recent_creditors', default='Recent Creditors') }}</h5>
+                            </div>
+                            <div class="card-body">
+                                {% if recent_creditors %}
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>{{ t('general_name', default='Name') }}</th>
+                                                    <th>{{ t('general_amount_owed', default='Amount Owed') }}</th>
+                                                    <th>{{ t('general_date', default='Date') }}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for creditor in recent_creditors %}
+                                                <tr>
+                                                    <td>{{ creditor.name }}</td>
+                                                    <td>{{ format_currency(creditor.amount_owed) }}</td>
+                                                    <td>{{ format_date(creditor.created_at) }}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">{{ t('creditors_no_recent_creditors', default='No recent creditors') }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">{{ t('agents_recent_cashflows', default='Recent Cashflows') }}</h5>
+                            </div>
+                            <div class="card-body">
+                                {% if recent_cashflows %}
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>{{ t('general_type', default='Type') }}</th>
+                                                    <th>{{ t('agents_party_name', default='Party Name') }}</th>
+                                                    <th>{{ t('general_amount', default='Amount') }}</th>
+                                                    <th>{{ t('general_date', default='Date') }}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for cashflow in recent_cashflows %}
+                                                <tr>
+                                                    <td>
+                                                        <span class="badge bg-{{ 'success' if cashflow.type == 'receipt' else 'danger' }}">
+                                                            {{ t(cashflow.type, default=cashflow.type.title()) }}
+                                                        </span>
+                                                    </td>
+                                                    <td>{{ cashflow.party_name }}</td>
+                                                    <td>{{ format_currency(cashflow.amount) }}</td>
+                                                    <td>{{ format_date(cashflow.created_at) }}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">{{ t('agents_no_recent_cashflows', default='No recent cashflows') }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            {% elif request.endpoint == 'agents_bp.generate_trader_report' %}
+                {{ page_header('agents_trader_report_title') }}
+                {{ trader_info(trader) }}
+
+                <!-- Financial Summary -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">{{ t('reports_financial_summary', default='Financial Summary') }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-md-3">
+                                        <div class="card bg-success text-white">
+                                            <div class="card-body">
+                                                <h4>{{ format_currency(total_debtors) }}</h4>
+                                                <p class="mb-0">{{ t('agents_total_debtors', default='Total Debtors') }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card bg-warning text-white">
+                                            <div class="card-body">
+                                                <h4>{{ format_currency(total_creditors) }}</h4>
+                                                <p class="mb-0">{{ t('agents_total_creditors', default='Total Creditors') }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card bg-info text-white">
+                                            <div class="card-body">
+                                                <h4>{{ format_currency(total_receipts) }}</h4>
+                                                <p class="mb-0">{{ t('agents_total_receipts', default='Total Receipts') }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card bg-danger text-white">
+                                            <div class="card-body">
+                                                <h4>{{ format_currency(total_payments) }}</h4>
+                                                <p class="mb-0">{{ t('agents_total_payments', default='Total Payments') }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mt-3 text-center">
+                                    <div class="col-md-6">
+                                        <div class="card bg-{{ 'success' if net_position >= 0 else 'danger' }} text-white">
+                                            <div class="card-body">
+                                                <h4>{{ format_currency(net_position) }}</h4>
+                                                <p class="mb-0">{{ t('agents_net_position', default='Net Position') }}</p>
+                                                <small>{{ t('reports_debtors_minus_creditors', default='(Debtors - Creditors)') }}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="card bg-{{ 'success' if net_cashflow >= 0 else 'danger' }} text-white">
+                                            <div class="card-body">
+                                                <h4>{{ format_currency(net_cashflow) }}</h4>
+                                                <p class="mb-0">{{ t('agents_net_cashflow', default='Net Cashflow') }}</p>
+                                                <small>{{ t('reports_receipts_minus_payments', default='(Receipts - Payments)') }}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Report Generation Options -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">{{ t('reports_generate_reports', default='Generate Reports') }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <a href="{{ url_for('reports.index') }}?trader_id={{ trader._id }}" class="btn btn-primary w-100">
+                                            <i class="bi bi-file-earmark-text me-2"></i>{{ t('reports_comprehensive_report', default='Comprehensive Report') }}
+                                        </a>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <a href="{{ url_for('debtors.index') }}?trader_id={{ trader._id }}" class="btn btn-success w-100">
+                                            <i class="bi bi-people me-2"></i>{{ t('debtors_report', default='Debtors Report') }}
+                                        </a>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <a href="{{ url_for('creditors.index') }}?trader_id={{ trader._id }}" class="btn btn-warning w-100">
+                                            <i class="bi bi-person-dash me-2"></i>{{ t('creditors_report', default='Creditors Report') }}
+                                        </a>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <a href="{{ url_for('receipts.index') }}?trader_id={{ trader._id }}" class="btn btn-info w-100">
+                                            <i class="bi bi-arrow-down-circle me-2"></i>{{ t('receipts_report', default='Receipts Report') }}
+                                        </a>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <a href="{{ url_for('payments.index') }}?trader_id={{ trader._id }}" class="btn btn-danger w-100">
+                                            <i class="bi bi-arrow-up-circle me-2"></i>{{ t('payments_report', default='Payments Report') }}
+                                        </a>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <a href="{{ url_for('inventory.index') }}?trader_id={{ trader._id }}" class="btn btn-secondary w-100">
+                                            <i class="bi bi-box-seam me-2"></i>{{ t('inventory_report', default='Inventory Report') }}
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Business Insights -->
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">{{ t('reports_business_insights', default='Business Insights') }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-info">
+                                    <h6>{{ t('reports_financial_health_analysis', default='Financial Health Analysis') }}</h6>
+                                    {% if net_position > 0 %}
+                                        <p class="mb-1"><i class="bi bi-check-circle text-success"></i> {{ t('reports_positive_net_position', default='Positive net position indicates good debt management') }}</p>
+                                    {% else %}
+                                        <p class="mb-1"><i class="bi bi-exclamation-triangle text-warning"></i> {{ t('reports_negative_net_position', default='Negative net position - consider debt collection strategies') }}</p>
+                                    {% endif %}
+                                    {% if net_cashflow > 0 %}
+                                        <p class="mb-1"><i class="bi bi-check-circle text-success"></i> {{ t('reports_positive_cashflow', default='Positive cashflow indicates healthy business operations') }}</p>
+                                    {% else %}
+                                        <p class="mb-1"><i class="bi bi-exclamation-triangle text-warning"></i> {{ t('reports_negative_cashflow', default='Negative cashflow - review expenses and revenue streams') }}</p>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="mt-3">
+                                    <button class="btn btn-outline-primary" onclick="window.print()">
+                                        <i class="bi bi-printer me-2"></i>{{ t('reports_print_report', default='Print Report') }}
+                                    </button>
+                                    <button class="btn btn-outline-success" onclick="exportToCSV('{{ trader._id }}')">
+                                        <i class="bi bi-file-earmark-spreadsheet me-2"></i>{{ t('reports_export_csv', default='Export to CSV') }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            {% elif request.endpoint == 'agents_bp.manage_credits' %}
+                {{ page_header('agents_manage_credits_title') }}
+
+                <div class="row justify-content-center">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">{{ t('agents_credit_request_form', default='Credit Request Form') }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <form method="POST" id="creditRequestForm">
+                                    {{ form.hidden_tag() }}
+                                    
+                                    <div class="mb-3">
+                                        <label for="{{ form.trader_username.id }}" class="form-label">{{ form.trader_username.label.text }}</label>
+                                        <div class="input-group">
+                                            {{ form.trader_username(class="form-control") }}
+                                            <button class="btn btn-outline-secondary" type="button" id="searchTraderBtn" disabled>
+                                                <i class="bi bi-search"></i>
+                                            </button>
+                                        </div>
+                                        {% if form.trader_username.errors %}
+                                            {% for error in form.trader_username.errors %}
+                                                <div class="invalid-feedback d-block">{{ error }}</div>
+                                            {% endfor %}
+                                        {% endif %}
+                                        <div id="traderSuggestions" class="list-group position-absolute w-100" style="z-index: 1000; display: none;"></div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ form.credit_amount.id }}" class="form-label">{{ form.credit_amount.label.text }}</label>
+                                            {{ form.credit_amount(class="form-control") }}
+                                            {% if form.credit_amount.errors %}
+                                                {% for error in form.credit_amount.errors %}
+                                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                                {% endfor %}
+                                            {% endif %}
+                                            <div class="form-text">{{ t('agents_credit_amount_help', default='Enter the amount of Ficore Credits to request') }}</div>
+                                        </div>
+                                        
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ form.payment_method.id }}" class="form-label">{{ form.payment_method.label.text }}</label>
+                                            {{ form.payment_method(class="form-control") }}
+                                            {% if form.payment_method.errors %}
+                                                {% for error in form.payment_method.errors %}
+                                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                                {% endfor %}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="{{ form.notes.id }}" class="form-label">{{ form.notes.label.text }}</label>
+                                        {{ form.notes(class="form-control") }}
+                                        {% if form.notes.errors %}
+                                            {% for error in form.notes.errors %}
+                                                <div class="invalid-feedback d-block">{{ error }}</div>
+                                            {% endfor %}
+                                        {% endif %}
+                                        <div class="form-text">{{ t('agents_notes_help', default='Optional notes about this credit request') }}</div>
+                                    </div>
+                                    
+                                    <div class="alert alert-warning">
+                                        <i class="bi bi-exclamation-triangle me-2"></i>
+                                        {{ t('agents_credit_request_warning', default='Credit requests are subject to admin approval. Ensure payment details are accurate before submission.') }}
+                                    </div>
+                                    
+                                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                        <a href="{{ url_for('agents_bp.agent_portal') }}" class="btn btn-outline-secondary me-md-2">
+                                            {{ t('general_cancel', default='Cancel') }}
+                                        </a>
+                                        {{ form.submit(class="btn btn-primary") }}
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            {% elif request.endpoint == 'agents_bp.recent_activity' %}
+                {{ page_header('agents_my_activity_title') }}
+
+                <!-- Performance Metrics -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title text-primary">{{ t('agents_total_traders_registered', default='Total Traders Registered') }}</h5>
+                                <h2 class="card-text">{{ total_traders_registered }}</h2>
+                                <small class="text-muted">{{ t('agents_since_joining', default='Since joining') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title text-success">{{ t('agents_total_credit_requests', default='Total Credit Requests') }}</h5>
+                                <h2 class="card-text">{{ total_credit_requests }}</h2>
+                                <small class="text-muted">{{ t('agents_total_requests', default='Total requests') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title text-info">{{ t('agents_activities_completed', default='Activities Completed') }}</h5>
+                                <h2 class="card-text">{{ activities|length }}</h2>
+                                <small class="text-muted">{{ t('agents_total_actions', default='Total actions') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title text-warning">{{ t('agents_performance_rating', default='Performance Rating') }}</h5>
+                                <h2 class="card-text">{{ performance_rating }}</h2>
+                                <small class="text-muted">{{ t('agents_based_on_performance', default='Based on performance') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Activity Timeline -->
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">{{ t('agents_activity_timeline', default='Activity Timeline') }}</h5>
+                            </div>
+                            <div class="card-body">
+                                {% if activities %}
+                                    <div class="timeline">
+                                        {% for activity in activities %}
+                                        <div class="timeline-item mb-3">
+                                            <div class="row">
+                                                <div class="col-md-2 text-muted">
+                                                    {{ format_date(activity.timestamp) }}
+                                                </div>
+                                                <div class="col-md-10">
+                                                    <div class="card">
+                                                        <div class="card-body py-2">
+                                                            <div class="d-flex align-items-center">
+                                                                <div class="activity-icon me-3">
+                                                                    {% if activity.activity_type == 'trader_registration' %}
+                                                                        <i class="bi bi-person-plus text-primary"></i>
+                                                                    {% elif activity.activity_type == 'credit_request' %}
+                                                                        <i class="bi bi-coin text-success"></i>
+                                                                    {% elif activity.activity_type == 'report_generation' %}
+                                                                        <i class="bi bi-file-earmark-text text-info"></i>
+                                                                    {% else %}
+                                                                        <i class="bi bi-activity text-secondary"></i>
+                                                                    {% endif %}
+                                                                </div>
+                                                                <div class="flex-grow-1">
+                                                                    <h6 class="mb-1">
+                                                                        {% if activity.activity_type == 'trader_registration' %}
+                                                                            {{ t('agents_registered_trader', default='Registered Trader') }}
+                                                                        {% elif activity.activity_type == 'credit_request' %}
+                                                                            {{ t('agents_submitted_credit_request', default='Submitted Credit Request') }}
+                                                                        {% elif activity.activity_type == 'report_generation' %}
+                                                                            {{ t('agents_generated_report', default='Generated Trader Report') }}
+                                                                        {% else %}
+                                                                            {{ activity.activity_type.replace('_', ' ').title() }}
+                                                                        {% endif %}
+                                                                    </h6>
+                                                                    <p class="mb-1 text-muted">
+                                                                        {% if activity.trader_id %}
+                                                                            {{ t('agents_trader', default='Trader') }}: <strong>{{ activity.trader_id }}</strong>
+                                                                        {% endif %}
+                                                                        {% if activity.details %}
+                                                                            {% if activity.details.business_name %}
+                                                                                • {{ activity.details.business_name }}
+                                                                            {% endif %}
+                                                                            {% if activity.details.amount %}
+                                                                                • {{ format_currency(activity.details.amount) }} FCs
+                                                                            {% endif %}
+                                                                            {% if activity.details.payment_method %}
+                                                                                • {{ activity.details.payment_method.replace('_', ' ').title() }}
+                                                                            {% endif %}
+                                                                        {% endif %}
+                                                                    </p>
+                                                                </div>
+                                                                <div class="text-muted">
+                                                                    {{ activity.timestamp.strftime('%I:%M %p') }}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <div class="text-center py-5">
+                                        <i class="bi bi-activity text-muted" style="font-size: 3rem;"></i>
+                                        <h5 class="mt-3 text-muted">{{ t('agents_no_activities_yet', default='No activities yet') }}</h5>
+                                        <p class="text-muted">{{ t('agents_start_by_registering_trader', default='Start by registering a trader or submitting credit requests') }}</p>
+                                        <a href="{{ url_for('agents_bp.register_trader') }}" class="btn btn-primary">
+                                            <i class="bi bi-person-plus me-2"></i>{{ t('agents_register_first_trader', default='Register First Trader') }}
+                                        </a>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if activities %}
+                <div class="row mt-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">{{ t('agents_monthly_performance', default='Monthly Performance') }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="performanceChart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+            {% elif request.endpoint == 'agents_bp.register_trader' %}
+                {{ page_header('agents_register_trader_title') }}
+
+                <div class="row justify-content-center">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">{{ t('agents_trader_registration_form', default='Trader Registration Form') }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <form method="POST">
+                                    {{ form.hidden_tag() }}
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ form.username.id }}" class="form-label">{{ form.username.label.text }}</label>
+                                            {{ form.username(class="form-control") }}
+                                            {% if form.username.errors %}
+                                                {% for error in form.username.errors %}
+                                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                                {% endfor %}
+                                            {% endif %}
+                                            <div class="form-text">{{ t('agents_username_help', default='This will be their login username') }}</div>
+                                        </div>
+                                        
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ form.email.id }}" class="form-label">{{ form.email.label.text }}</label>
+                                            {{ form.email(class="form-control") }}
+                                            {% if form.email.errors %}
+                                                {% for error in form.email.errors %}
+                                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                                {% endfor %}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ form.business_name.id }}" class="form-label">{{ form.business_name.label.text }}</label>
+                                            {{ form.business_name(class="form-control") }}
+                                            {% if form.business_name.errors %}
+                                                {% for error in form.business_name.errors %}
+                                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                                {% endfor %}
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ form.phone_number.id }}" class="form-label">{{ form.phone_number.label.text }}</label>
+                                            {{ form.phone_number(class="form-control") }}
+                                            {% if form.phone_number.errors %}
+                                                {% for error in form.phone_number.errors %}
+                                                    <div class="invalid-feedback d-block">{{ error }}</div>
+                                                {% endfor %}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="{{ form.industry.id }}" class="form-label">{{ form.industry.label.text }}</label>
+                                        {{ form.industry(class="form-control") }}
+                                        {% if form.industry.errors %}
+                                            {% for error in form.industry.errors %}
+                                                <div class="invalid-feedback d-block">{{ error }}</div>
+                                            {% endfor %}
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-info-circle me-2"></i>
+                                        {{ t('agents_registration_note', default='A temporary password will be generated and displayed after successful registration. The trader will receive 20 bonus Ficore Credits upon registration.') }}
+                                    </div>
+                                    
+                                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                        <a href="{{ url_for('agents_bp.agent_portal') }}" class="btn btn-outline-secondary me-md-2">
+                                            {{ t('general_cancel', default='Cancel') }}
+                                        </a>
+                                        {{ form.submit(class="btn btn-primary") }}
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            {% elif request.endpoint == 'agents_bp.created_traders' %}
+                {{ page_header('agents_created_traders_title') }}
+
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">{{ t('agents_created_traders_title', default='Created Traders') }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-info">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    {{ t('agents_created_traders_note', default='Below is a list of traders you have registered. Temporary passwords expire after 30 days for security.') }}
+                                </div>
+                                {% if trader_details %}
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>{{ t('general_username', default='Username') }}</th>
+                                                    <th>{{ t('general_email', default='Email') }}</th>
+                                                    <th>{{ t('agents_temp_password', default='Temporary Password') }}</th>
+                                                    <th>{{ t('general_business_name', default='Business Name') }}</th>
+                                                    <th>{{ t('general_phone_number', default='Phone Number') }}</th>
+                                                    <th>{{ t('general_industry', default='Industry') }}</th>
+                                                    <th>{{ t('general_created_at', default='Created At') }}</th>
+                                                    <th>{{ t('general_actions', default='Actions') }}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for trader in trader_details %}
+                                                <tr>
+                                                    <td>{{ trader.username }}</td>
+                                                    <td>{{ trader.email }}</td>
+                                                    <td>{{ trader.temp_password }}</td>
+                                                    <td>{{ trader.business_name }}</td>
+                                                    <td>{{ trader.phone_number }}</td>
+                                                    <td>{{ t(trader.industry, default=trader.industry.title()) }}</td>
+                                                    <td>{{ format_date(trader.created_at) }}</td>
+                                                    <td>
+                                                        <div class="btn-group btn-group-sm">
+                                                            <a href="{{ url_for('agents_bp.assist_trader_records', trader_id=trader.username) }}"
+                                                               class="btn btn-outline-primary btn-sm"
+                                                               data-bs-toggle="tooltip"
+                                                               title="{{ t('agents_view_records', default='View Records') }}">
+                                                                <i class="bi bi-pencil"></i>
+                                                            </a>
+                                                            <a href="{{ url_for('agents_bp.generate_trader_report', trader_id=trader.username) }}"
+                                                               class="btn btn-outline-success btn-sm"
+                                                               data-bs-toggle="tooltip"
+                                                               title="{{ t('agents_generate_report', default='Generate Report') }}">
+                                                                <i class="bi bi-file-earmark-text"></i>
+                                                            </a>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted text-center">{{ t('agents_no_created_traders', default='No traders have been registered yet') }}</p>
+                                    <div class="text-center mt-3">
+                                        <a href="{{ url_for('agents_bp.register_trader') }}" class="btn btn-primary">
+                                            <i class="bi bi-person-plus me-2"></i>{{ t('agents_register_first_trader', default='Register First Trader') }}
+                                        </a>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            {% endif %}
+        </main>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize tooltips
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+
+    // Dashboard auto-refresh
+    if (window.location.pathname.includes('/agents/') && window.location.pathname === '/agents/') {
+        const refreshDashboard = () => {
+            document.querySelectorAll('#traders-registered, #credit-requests-today').forEach(el => el.classList.add('text-muted'));
+            fetch('/agents/', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    ['traders-registered', 'credit-requests-today'].forEach(id => {
+                        const newElement = doc.getElementById(id);
+                        const currentElement = document.getElementById(id);
+                        if (newElement && currentElement) {
+                            currentElement.textContent = newElement.textContent;
+                            currentElement.classList.remove('text-muted');
+                        }
+                    });
+                })
+                .catch(error => console.error('Dashboard refresh failed:', error));
+        };
+        setInterval(refreshDashboard, 30000);
+    }
+
+    // Trader search functionality
+    const traderInput = document.getElementById('trader_username');
+    const suggestionsDiv = document.getElementById('traderSuggestions');
+    const searchBtn = document.getElementById('searchTraderBtn');
+    if (traderInput && suggestionsDiv) {
+        let searchTimeout;
+        traderInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const query = this.value.trim();
+            searchBtn.disabled = query.length < 2;
+            
+            if (query.length < 2) {
+                suggestionsDiv.style.display = 'none';
+                return;
+            }
+
+            searchBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+            searchTimeout = setTimeout(() => {
+                fetch(`/agents/api/search_traders?q=${encodeURIComponent(query)}`)
+                    .then(response => response.json())
+                    .then(traders => {
+                        suggestionsDiv.innerHTML = '';
+                        if (traders.length > 0) {
+                            traders.forEach(trader => {
+                                const item = document.createElement('a');
+                                item.className = 'list-group-item list-group-item-action';
+                                item.href = '#';
+                                item.innerHTML = `
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">${trader.business_name}</h6>
+                                        <small>${trader.username}</small>
+                                    </div>
+                                    <small class="text-muted">${trader.email}</small>
+                                `;
+                                item.addEventListener('click', function(e) {
+                                    e.preventDefault();
+                                    traderInput.value = trader.username;
+                                    suggestionsDiv.style.display = 'none';
+                                });
+                                suggestionsDiv.appendChild(item);
+                            });
+                            suggestionsDiv.style.display = 'block';
+                        } else {
+                            suggestionsDiv.innerHTML = '<div class="list-group-item text-muted">No traders found</div>';
+                            suggestionsDiv.style.display = 'block';
+                        }
+                        searchBtn.innerHTML = '<i class="bi bi-search"></i>';
+                    })
+                    .catch(error => {
+                        console.error('Error searching traders:', error);
+                        suggestionsDiv.innerHTML = '<div class="list-group-item text-danger">Error searching traders</div>';
+                        suggestionsDiv.style.display = 'block';
+                        searchBtn.innerHTML = '<i class="bi bi-search"></i>';
+                    });
+            }, 300);
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!traderInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
+                suggestionsDiv.style.display = 'none';
+            }
+        });
+    }
+
+    // Performance chart
+    const ctx = document.getElementById('performanceChart');
+    if (ctx) {
+        const monthlyData = {};
+        const activities = {{ activities | tojson | safe }};
+        
+        activities.forEach(activity => {
+            const date = new Date(activity.timestamp);
+            const monthKey = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
+            
+            if (!monthlyData[monthKey]) {
+                monthlyData[monthKey] = {
+                    trader_registration: 0,
+                    credit_request: 0,
+                    report_generation: 0
+                };
+            }
+            
+            if (monthlyData[monthKey][activity.activity_type] !== undefined) {
+                monthlyData[monthKey][activity.activity_type]++;
+            }
+        });
+        
+        const labels = Object.keys(monthlyData).sort();
+        const traderRegistrations = labels.map(month => monthlyData[month].trader_registration);
+        const creditRequests = labels.map(month => monthlyData[month].credit_request);
+        const reportGenerations = labels.map(month => monthlyData[month].report_generation);
+        
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '{{ t("agents_trader_registrations", default="Trader Registrations") }}',
+                    data: traderRegistrations,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    tension: 0.1
+                }, {
+                    label: '{{ t("agents_credit_requests", default="Credit Requests") }}',
+                    data: creditRequests,
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    tension: 0.1
+                }, {
+                    label: '{{ t("agents_report_generations", default="Report Generations") }}',
+                    data: reportGenerations,
+                    borderColor: 'rgb(54, 162, 235)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '{{ t("agents_monthly_activity_trend", default="Monthly Activity Trend") }}'
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
+
+    // CSV Export
+    window.exportToCSV = function(traderId) {
+        const data = [
+            ['Metric', 'Amount'],
+            ['{{ t('agents_total_debtors', default='Total Debtors') }}', '{{ total_debtors }}'],
+            ['{{ t('agents_total_creditors', default='Total Creditors') }}', '{{ total_creditors }}'],
+            ['{{ t('agents_total_receipts', default='Total Receipts') }}', '{{ total_receipts }}'],
+            ['{{ t('agents_total_payments', default='Total Payments') }}', '{{ total_payments }}'],
+            ['{{ t('agents_net_position', default='Net Position') }}', '{{ net_position }}'],
+            ['{{ t('agents_net_cashflow', default='Net Cashflow') }}', '{{ net_cashflow }}']
+        ];
+        
+        const escapeCsv = (value) => `"${String(value).replace(/"/g, '""')}"`;
+        const csvContent = data.map(row => row.map(escapeCsv).join(',')).join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `trader_report_${traderId}.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+    };
+});
+</script>
+
+<style>
+.timeline-item {
+    position: relative;
+}
+.timeline-item:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 100%;
+    width: 2px;
+    height: 20px;
+    background-color: #dee2e6;
+}
+.activity-icon {
+    font-size: 1.2rem;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,107 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script>{% extends "base.html" %}
+{% block title %}
+{{ t('admin_edit_payment_location', default='Edit Payment Location') | escape }} - FiCore
+{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">{{ t('admin_edit_payment_location', default='Edit Payment Location') | escape }}</h1>
+    
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message | escape }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    <!-- Edit Payment Location Form -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('admin.edit_payment_location', location_id=location._id) }}">
+                {{ form.hidden_tag() }}
+                <div class="mb-3">
+                    <label for="{{ form.name.id }}" class="form-label">{{ t('payment_location_name', default='Name') | escape }}</label>
+                    {{ form.name(class="form-control") }}
+                    {% if form.name.errors %}
+                        {% for error in form.name.errors %}
+                            <div class="invalid-feedback d-block">{{ error | escape }}</div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+                <div class="mb-3">
+                    <label for="{{ form.address.id }}" class="form-label">{{ t('payment_location_address', default='Address') | escape }}</label>
+                    {{ form.address(class="form-control") }}
+                    {% if form.address.errors %}
+                        {% for error in form.address.errors %}
+                            <div class="invalid-feedback d-block">{{ error | escape }}</div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+                <div class="mb-3">
+                    <label for="{{ form.city.id }}" class="form-label">{{ t('payment_location_city', default='City') | escape }}</label>
+                    {{ form.city(class="form-control") }}
+                    {% if form.city.errors %}
+                        {% for error in form.city.errors %}
+                            <div class="invalid-feedback d-block">{{ error | escape }}</div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+                <div class="mb-3">
+                    <label for="{{ form.country.id }}" class="form-label">{{ t('payment_location_country', default='Country') | escape }}</label>
+                    {{ form.country(class="form-control") }}
+                    {% if form.country.errors %}
+                        {% for error in form.country.errors %}
+                            <div class="invalid-feedback d-block">{{ error | escape }}</div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+                {{ form.submit(class="btn btn-primary w-100") }}
+            </form>
+        </div>
+    </div>
+    <a href="{{ url_for('admin.manage_payment_locations') }}" class="btn btn-secondary mt-3">{{ t('general_back', default='Back to Payment Locations') | escape }}</a>
+</div>
+{% endblock %}

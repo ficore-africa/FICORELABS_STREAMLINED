@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "_ficore_report_header.html" import ficore_report_header %}
+{% block title %}{{ t('reports_tax_obligations', default='Tax Obligations Report') }} - FiCore{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    {{ ficore_report_header(current_user) }}
+    <div class="page-title">
+        <h1>{{ t('reports_tax_obligations', default='Tax Obligations Report') }}</h1>
+        <small class="subtext">{{ t('reports_subtitle', default='Rahoton Kasuwanci') }}</small>
+    </div>
+    <form action="{{ url_for('reports.tax_obligations') }}" method="POST" class="row g-3 mb-4">
+        {{ form.hidden_tag() }}
+        <div class="col-12 col-md-4">
+            <label for="start_date" class="form-label">{{ t('reports_start_date', default='Start Date') }}</label>
+            {{ form.start_date(class="form-control", type="date") }}
+            {% if form.start_date.errors %}
+                <p class="text-danger mt-1">{{ form.start_date.errors[0] }}</p>
+            {% endif %}
+        </div>
+        <div class="col-12 col-md-4">
+            <label for="end_date" class="form-label">{{ t('reports_end_date', default='End Date') }}</label>
+            {{ form.end_date(class="form-control", type="date") }}
+            {% if form.end_date.errors %}
+                <p class="text-danger mt-1">{{ form.end_date.errors[0] }}</p>
+            {% endif %}
+        </div>
+        <div class="col-12 col-md-4">
+            <label for="status" class="form-label">{{ t('general_status', default='Status') }}</label>
+            {{ form.status(class="form-control") }}
+            {% if form.status.errors %}
+                <p class="text-danger mt-1">{{ form.status.errors[0] }}</p>
+            {% endif %}
+        </div>
+        <div class="col-12 d-flex gap-2">
+            <button type="submit" name="format" value="html" class="btn btn-primary">{{ t('general_view', default='View') }}</button>
+            <button type="submit" name="format" value="pdf" class="btn btn-success">{{ t('general_download_pdf', default='Download PDF') }}</button>
+            <button type="submit" name="format" value="csv" class="btn btn-success">{{ t('general_download_csv', default='Download CSV') }}</button>
+        </div>
+    </form>
+    {% if tax_reminders|length > 0 %}
+        <div class="table-responsive">
+            <table class="table table-striped table-bordered">
+                <thead class="table-light">
+                    <tr>
+                        <th>{{ t('general_due_date', default='Due Date') }}</th>
+                        <th>{{ t('general_tax_type', default='Tax Type') }}</th>
+                        <th>{{ t('general_amount', default='Amount') }}</th>
+                        <th>{{ t('general_status', default='Status') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tr in tax_reminders %}
+                        <tr>
+                            <td data-label="{{ t('general_due_date', default='Due Date') }}">{{ format_date(tr.due_date) }}</td>
+                            <td data-label="{{ t('general_tax_type', default='Tax Type') }}">{{ tr.tax_type }}</td>
+                            <td data-label="{{ t('general_amount', default='Amount') }}">{{ format_currency(tr.amount) }}</td>
+                            <td data-label="{{ t('general_status', default='Status') }}">{{ t(tr.status, default=tr.status) }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="text-center py-5">
+            <p class="text-muted">{{ t('reports_no_tax_reminders', default='No tax reminders found') }}</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

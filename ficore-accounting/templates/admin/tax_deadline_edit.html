@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}
+{{ t('admin_edit_tax_deadline', default='Edit Tax Deadline') | escape }} - FiCore
+{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">{{ t('admin_edit_tax_deadline', default='Edit Tax Deadline') | escape }}</h1>
+    
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message | escape }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    <!-- Edit Tax Deadline Form -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('admin.edit_tax_deadline', deadline_id=deadline._id) }}">
+                {{ form.hidden_tag() }}
+                <div class="mb-3">
+                    <label for="{{ form.role.id }}" class="form-label">{{ t('tax_role', default='Role') | escape }}</label>
+                    {{ form.role(class="form-select") }}
+                    {% if form.role.errors %}
+                        {% for error in form.role.errors %}
+                            <div class="invalid-feedback d-block">{{ error | escape }}</div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+                <div class="mb-3">
+                    <label for="{{ form.deadline_date.id }}" class="form-label">{{ t('deadline_date', default='Deadline Date') | escape }}</label>
+                    {{ form.deadline_date(class="form-control", type="date") }}
+                    {% if form.deadline_date.errors %}
+                        {% for error in form.deadline_date.errors %}
+                            <div class="invalid-feedback d-block">{{ error | escape }}</div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+                <div class="mb-3">
+                    <label for="{{ form.description.id }}" class="form-label">{{ t('tax_description', default='Description') | escape }}</label>
+                    {{ form.description(class="form-control") }}
+                    {% if form.description.errors %}
+                        {% for error in form.description.errors %}
+                            <div class="invalid-feedback d-block">{{ error | escape }}</div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+                {{ form.submit(class="btn btn-primary w-100") }}
+            </form>
+        </div>
+    </div>
+    <a href="{{ url_for('admin.manage_tax_deadlines') }}" class="btn btn-secondary mt-3">{{ t('general_back', default='Back to Tax Deadlines') | escape }}</a>
+</div>
+{% endblock %}

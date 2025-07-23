@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}
+{{ t('agents_complete_setup', default='Complete Agent Setup') | escape }}
+{% endblock %}
+{% block content %}
+<div class="container my-5">
+    <div class="form-container card p-4">
+        <h2 class="card-title text-center mb-4" id="setup-form-title">{{ t('agents_complete_setup', default='Complete Agent Setup') | escape }}</h2>
+        <p class="text-center text-muted mb-4">{{ t('agents_provide_details', default='Please provide your agent details to complete the setup.') | escape }}</p>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-4">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'danger' else 'info' }} alert-dismissible fade show" role="alert">
+                            {{ message | escape }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{{ t('general_close', default='Close') | escape }}"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        <form method="POST" class="needs-validation" novalidate aria-labelledby="setup-form-title">
+            {{ form.hidden_tag() }}
+            
+            <div class="form-group mb-3">
+                <label class="form-label" for="agent_name">{{ t('agents_agent_name', default='Agent Name') | escape }}</label>
+                {{ form.agent_name(class="form-control" + (" is-invalid" if form.agent_name.errors else ""), required=True, id="agent_name", **{"aria-describedby": "agentNameFeedback" if form.agent_name.errors else "", "aria-required": "true"}) | safe }}
+                {% if form.agent_name.errors %}
+                    <div id="agentNameFeedback" class="invalid-feedback" role="alert">
+                        {% for error in form.agent_name.errors %}
+                            {{ error | escape }}<br>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group mb-3">
+                <label class="form-label" for="agent_id">{{ t('agents_agent_id', default='Agent ID') | escape }}</label>
+                {{ form.agent_id(class="form-control" + (" is-invalid" if form.agent_id.errors else ""), required=True, id="agent_id", **{"aria-describedby": "agentIdFeedback" if form.agent_id.errors else "", "aria-required": "true"}) | safe }}
+                {% if form.agent_id.errors %}
+                    <div id="agentIdFeedback" class="invalid-feedback" role="alert">
+                        {% for error in form.agent_id.errors %}
+                            {{ error | escape }}<br>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group mb-3">
+                <label class="form-label" for="area">{{ t('agents_area', default='Geographic Area') | escape }}</label>
+                {{ form.area(class="form-control" + (" is-invalid" if form.area.errors else ""), required=True, id="area", **{"aria-describedby": "areaFeedback" if form.area.errors else "", "aria-required": "true"}) | safe }}
+                {% if form.area.errors %}
+                    <div id="areaFeedback" class="invalid-feedback" role="alert">
+                        {% for error in form.area.errors %}
+                            {{ error | escape }}<br>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group mb-3">
+                <label class="form-label" for="role">{{ t('agents_role', default='Primary Role') | escape }}</label>
+                {{ form.role(class="form-select" + (" is-invalid" if form.role.errors else ""), required=True, id="role", **{"aria-describedby": "roleFeedback" if form.role.errors else "", "aria-required": "true"}) | safe }}
+                {% if form.role.errors %}
+                    <div id="roleFeedback" class="invalid-feedback" role="alert">
+                        {% for error in form.role.errors %}
+                            {{ error | escape }}<br>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group mb-3">
+                <label class="form-label" for="email">{{ t('general_email', default='Email') | escape }}</label>
+                {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else ""), required=True, id="email", **{"aria-describedby": "emailFeedback" if form.email.errors else "", "aria-required": "true"}) | safe }}
+                {% if form.email.errors %}
+                    <div id="emailFeedback" class="invalid-feedback" role="alert">
+                        {% for error in form.email.errors %}
+                            {{ error | escape }}<br>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group mb-3">
+                <label class="form-label" for="phone">{{ t('general_phone', default='Phone Number') | escape }}</label>
+                {{ form.phone(class="form-control" + (" is-invalid" if form.phone.errors else ""), required=True, id="phone", **{"aria-describedby": "phoneFeedback" if form.phone.errors else "", "aria-required": "true"}) | safe }}
+                {% if form.phone.errors %}
+                    <div id="phoneFeedback" class="invalid-feedback" role="alert">
+                        {% for error in form.phone.errors %}
+                            {{ error | escape }}<br>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group mb-3">
+                <label class="form-label" for="language">{{ t('general_language', default='Language') | escape }}</label>
+                {{ form.language(class="form-select" + (" is-invalid" if form.language.errors else ""), required=True, id="language", **{"aria-describedby": "languageFeedback" if form.language.errors else "", "aria-required": "true"}) | safe }}
+                {% if form.language.errors %}
+                    <div id="languageFeedback" class="invalid-feedback" role="alert">
+                        {% for error in form.language.errors %}
+                            {{ error | escape }}<br>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="form-group mb-4">
+                <div class="form-check">
+                    {{ form.terms(class="form-check-input" + (" is-invalid" if form.terms.errors else ""), required=True, id="terms", **{"aria-describedby": "termsFeedback" if form.terms.errors else "", "aria-required": "true"}) | safe }}
+                    <label class="form-check-label" for="terms">{{ t('general_terms', default='I accept the Terms and Conditions') | escape }}</label>
+                </div>
+                {% if form.terms.errors %}
+                    <div id="termsFeedback" class="invalid-feedback" role="alert">
+                        {% for error in form.terms.errors %}
+                            {{ error | escape }}<br>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="row g-2">
+                <div class="col-12 col-md-6 mx-auto">
+                    {{ form.submit(class="btn btn-primary w-100", **{"aria-label": t('general_save_and_continue', default='Save and Continue') | escape}) | safe }}
+                </div>
+                <div class="col-12 col-md-6 mx-auto">
+                    {{ form.back(class="btn btn-secondary w-100", **{"aria-label": t('general_back', default='Back') | escape}) | safe }}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+    (function () {
+        'use strict';
+        const forms = document.querySelectorAll('.needs-validation');
+        Array.from(forms).forEach(form => {
+            form.addEventListener('submit', event => {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    })();
+</script>
+{% endblock %}
