@@ -5,6 +5,7 @@ SHOPPING_TRANSLATIONS = {
         'shopping_budget_required': 'Budget amount is required',
         # Shopping module
         'shopping_budget_placeholder': 'Enter budget amount',
+        'shopping_spending': 'Spending',
         'shopping_budget_invalid': 'Invalid budget amount',
         'shopping_budget_help': 'Enter the total budget for this shopping list (e.g., ₦50,000)',
         'shopping_save_list': 'Save List',
@@ -277,6 +278,7 @@ SHOPPING_TRANSLATIONS = {
         'shopping_frequency_help': 'Shigar da yawan lokacin da kuke sayan wannan abu a cikin kwanaki (misali, 7 don mako-mako)',
         'shopping_email_placeholder': 'Shigar da adireshin imel',
         'shopping_email_invalid': 'Adireshin imel ba daidai ba ne',
+        'shopping_spending': 'Kashekashen',
         'shopping_list_details': 'Bayanin Jeri',
         'shopping_amount_max': 'Adadin ya wuce adadin da aka yarda',
         'shopping_amount_positive': 'Adadin dole ne ya zama tabbatacce',
