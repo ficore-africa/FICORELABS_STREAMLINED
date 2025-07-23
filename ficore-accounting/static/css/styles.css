@@ -3093,91 +3093,129 @@ a.text-decoration-none:hover .btn-outline-primary {
 .btn-close-white {
     filter: invert(100%) sepia(100%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%);
 }
-.daily-planner-tools {
-    background: linear-gradient(135deg, #fefefe, #f3f4f6);
-    padding: 20px;
-    border-radius: 14px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.05);
-    margin-bottom: 20px;
-}
-
-.daily-planner-tools .section-title {
-    font-size: 1.3rem;
-    font-weight: 600;
-    color: #222;
-    margin-bottom: 16px;
-}
-
-.daily-planner-tools .quick-actions {
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-    justify-content: space-between;
-}
-.daily-planner-tools .quick-action-card {
-    background-color: #fff;
-    border: 1px solid #eee;
-    border-radius: 12px;
-    flex: 1 1 calc(50% - 10px);
-    max-width: calc(50% - 10px);
-    padding: 16px;
-    text-align: center;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
-}
-
-.daily-planner-tools .quick-action-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.07);
-    background-color: #f9f9f9;
-}
-
-.daily-planner-tools .action-icon {
-    font-size: 2rem;
-    margin-bottom: 8px;
-    color: #4a90e2;
-}
-.daily-planner-tools .action-label {
-    font-weight: 500;
-    font-size: 1rem;
-    color: #333;
-}
 .login-page {
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 100vh;
-    margin-top: 100px; /* Increased margin to clear header */
+    min-height: calc(100vh - 100px); /* Adjusts for header height */
+    width: 100%;
+    padding: 100px 1rem 0; /* Adds padding to clear header */
+    box-sizing: border-box;
 }
 
 .login-page__container {
-    padding-top: 1.5rem;
-    padding-bottom: 1.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     width: 100%;
+    max-width: 28rem; /* Limits container width for consistency */
 }
 
 .login-page__card {
-    margin-top: 2rem;
-    margin-bottom: 2rem;
+    width: 100%;
     padding: 1.5rem;
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-@media (max-width: 640px) {
-    .login-page {
-        margin-top: 80px; /* Adjusted for mobile headers */
-    }
-    
-    .login-page__card {
-        margin-top: 1.5rem;
-        margin-bottom: 1.5rem;
-        padding: 1rem;
-    }
+.login-page__form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .login-page__form.space-y-4 > div {
+    width: 100%;
+    max-width: 20rem; /* Centers input fields with a fixed width */
     margin-bottom: 1rem;
+}
+
+.login-page__form input,
+.login-page__form button {
+    width: 100%;
+    text-align: center; /* Centers text in input fields and button */
 }
 
 .login-page__alert {
     margin-bottom: 1.5rem;
+    width: 100%;
+    max-width: 20rem; /* Aligns alert with input fields */
+}
+
+@media (max-width: 640px) {
+    .login-page {
+        padding: 80px 0.5rem 0; /* Adjusted for mobile header */
+        min-height: calc(100vh - 80px);
+    }
+
+    .login-page__card {
+        padding: 1rem;
+    }
+
+    .login-page__container {
+        max-width: 100%;
+    }
+}
+.daily-planner-tools {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(243, 244, 246, 0.7));
+    backdrop-filter: blur(10px);
+    padding: 24px;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    margin-bottom: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.daily-planner-tools .section-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 20px;
+    letter-spacing: -0.02em;
+}
+
+.daily-planner-tools .quick-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 20px;
+    justify-content: center;
+}
+
+.daily-planner-tools .quick-action-card {
+    background: rgba(255, 255, 255, 0.95);
+    border: none;
+    border-radius: 14px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.3s ease-in-out;
+    box-shadow: 0 3px 15px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.daily-planner-tools .quick-action-card:hover {
+    transform: translateY(-5px) scale(1.02);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 1);
+}
+
+.daily-planner-tools .action-icon {
+    font-size: 2.5rem;
+    margin-bottom: 12px;
+    color: #3b82f6;
+    transition: color 0.3s ease;
+}
+
+.daily-planner-tools .quick-action-card:hover .action-icon {
+    color: #2563eb;
+}
+
+.daily-planner-tools .action-label {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #2d2d2d;
+    letter-spacing: -0.01em;
 }
