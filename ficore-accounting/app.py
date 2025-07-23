@@ -21,10 +21,11 @@ from mailersend_email import init_email_config
 from scheduler_setup import init_scheduler
 from models import (
     create_user, get_user_by_email, get_user, get_budgets, get_bills,
-    get_payment_locations, to_dict_budget, to_dict_bill,
-    to_dict_payment_location, initialize_app_data
+    to_dict_budget, to_dict_bill, initialize_app_data
 )
-from tax_models import initialize_tax_data
+from tax_models import (
+    initialize_tax_data, get_payment_locations, to_dict_payment_location
+)
 import utils
 from session_utils import create_anonymous_session
 from translations import register_translation, trans, get_translations, get_all_translations, get_module_translations
