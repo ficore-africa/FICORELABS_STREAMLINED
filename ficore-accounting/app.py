@@ -406,7 +406,7 @@ def create_app():
                     logger.error(f'Error shutting down scheduler: {str(e)}', exc_info=True)
 
             personal_finance_collections = [
-                'budgets', 'bills', 'bill_reminders', 'payment_locations'
+                'budgets', 'bills', 'bill_reminders'
             ]
             db = app.extensions['mongo']['ficodb']
             for collection_name in personal_finance_collections:
@@ -435,7 +435,6 @@ def create_app():
                 db.bill_reminders.create_index([('notification_id', 1)])
                 db.records.create_index([('user_id', 1), ('type', 1), ('created_at', -1)])
                 db.cashflows.create_index([('user_id', 1), ('type', 1), ('created_at', -1)])
-                db.payment_locations.create_index([('name', 1)])
                 logger.info('Created indexes for collections')
             except Exception as e:
                 logger.warning(f'Some indexes may already exist: {str(e)}')
