@@ -176,7 +176,7 @@ _PERSONAL_EXPLORE_FEATURES = [
         "description_key": "food_order_desc",
         "tooltip_key": "food_order_tooltip",
         "icon": "bi-box-seam",    
-    }
+    },
     {
         "endpoint": "credits.request_credits",
         "label": "Ficore Credits",
