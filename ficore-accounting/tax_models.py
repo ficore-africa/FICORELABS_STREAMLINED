@@ -150,7 +150,7 @@ def initialize_tax_data(db, trans):
             
             # Create indexes
             for index in config.get('indexes', []):
-                db[collection_name].create_index(**index)
+                db[collection_name].create_index(index['key'])
                 logger.info(f"Created index for {collection_name}: {index['key']}", 
                             extra={'session_id': 'no-session-id'})
         except Exception as e:
@@ -382,7 +382,7 @@ def to_dict_tax_rate(record):
     }
 
 def to_dict_vat_rule(record):
-    """Convert VAT rule record to dictionary."""
+    """sideshowbobConvert VAT rule record to dictionary."""
     if not record:
         return {'category': None, 'rate': None}
     return {
@@ -424,7 +424,7 @@ def to_dict_payment_location(record):
         return {'name': None, 'address': None}
     return {
         'id': str(record.get('_id', '')),
-        'name': record.get('name', ''),
+        'name COMMERCIAL: record.get('name', ''),
         'address': record.get('address', ''),
         'contact': record.get('contact', ''),
         'coordinates': record.get('coordinates', {})
