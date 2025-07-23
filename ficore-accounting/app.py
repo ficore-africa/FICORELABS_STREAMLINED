@@ -21,10 +21,10 @@ from mailersend_email import init_email_config
 from scheduler_setup import init_scheduler
 from models import (
     create_user, get_user_by_email, get_user, get_budgets, get_bills,
-    get_tax_rates, get_payment_locations, get_tax_reminders, get_vat_rules, 
-    get_tax_deadlines, to_dict_budget, to_dict_bill, to_dict_tax_rate,
-    to_dict_payment_location, to_dict_tax_reminder, to_dict_vat_rule, initialize_app_data
+    get_payment_locations, to_dict_budget, to_dict_bill,
+    to_dict_payment_location, initialize_app_data
 )
+from tax_models import initialize_tax_data
 import utils
 from session_utils import create_anonymous_session
 from translations import register_translation, trans, get_translations, get_all_translations, get_module_translations
@@ -406,14 +406,21 @@ def create_app():
                     logger.error(f'Error shutting down scheduler: {str(e)}', exc_info=True)
 
             personal_finance_collections = [
-                'budgets', 'bills', 'bill_reminders',
-                'tax_rates', 'payment_locations', 'tax_reminders', 'vat_rules', 'tax_deadlines'
+                'budgets', 'bills', 'bill_reminders', 'payment_locations'
             ]
             db = app.extensions['mongo']['ficodb']
             for collection_name in personal_finance_collections:
                 if collection_name not in db.list_collection_names():
                     db.create_collection(collection_name)
                     logger.info(f'Created collection: {collection_name}')
+            
+            # Initialize tax-related collections
+            try:
+                initialize_tax_data(db, trans)
+                logger.info('Tax-related data initialized successfully', extra={'session_id': 'no-session-id'})
+            except Exception as e:
+                logger.error(f'Failed to initialize tax-related data: {str(e)}', exc_info=True)
+                raise
             
             try:
                 db.bills.create_index([('user_id', 1), ('due_date', 1)])
@@ -428,42 +435,10 @@ def create_app():
                 db.bill_reminders.create_index([('notification_id', 1)])
                 db.records.create_index([('user_id', 1), ('type', 1), ('created_at', -1)])
                 db.cashflows.create_index([('user_id', 1), ('type', 1), ('created_at', -1)])
-                db.tax_rates.create_index([('role', 1)])
-                db.tax_rates.create_index([('min_income', 1)])
-                db.tax_rates.create_index([('session_id', 1)])
                 db.payment_locations.create_index([('name', 1)])
-                db.tax_reminders.create_index([('user_id', 1)])
-                db.tax_reminders.create_index([('session_id', 1)])
-                db.tax_reminders.create_index([('due_date', 1)])
-                db.vat_rules.create_index([('category', 1)], unique=True)
-                db.vat_rules.create_index([('session_id', 1)])
-                db.tax_deadlines.create_index([('deadline_date', 1)])
-                db.tax_deadlines.create_index([('session_id', 1)])
                 logger.info('Created indexes for collections')
             except Exception as e:
                 logger.warning(f'Some indexes may already exist: {str(e)}')
-            
-            try:
-                db.tax_rates.create_index([('role', 1)])
-                db.tax_rates.create_index([('min_income', 1)])
-                db.tax_rates.create_index([('session_id', 1)])
-                logger.info('Created tax rates indexes')
-            except Exception as e:
-                logger.warning(f'Tax rates indexes may already exist: {str(e)}')
-            
-            try:
-                with app.app_context():
-                    tax_version = db.tax_rates.find_one({'_id': 'version'})
-                    current_tax_version = '2025-07-02'
-                    if not tax_version or tax_version.get('version') != current_tax_version:
-                        db.tax_rates.update_one(
-                            {'_id': 'version'},
-                            {'$set': {'version': current_tax_version, 'updated_at': datetime.utcnow(), 'role': 'system'}},
-                            upsert=True
-                        )
-                        logger.info(f'Tax data seeded or updated to version {current_tax_version}')
-            except Exception as e:
-                logger.error(f'Failed to seed tax data: {str(e)}', exc_info=True)
             
             admin_email = os.getenv('ADMIN_EMAIL', 'ficore@gmail.com')
             admin_password = os.getenv('ADMIN_PASSWORD')
