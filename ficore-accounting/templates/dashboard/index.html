@@ -154,6 +154,12 @@
                                     <small>{{ t('food_order_title', default='Food Orders') }}</small>
                                 </a>
                             </div>
+                            <div class="col-md-2 col-6">
+                                <a href="{{ url_for('credits.request_credits') }}" class="btn btn-outline-success w-100" data-bs-toggle="tooltip" title="{{ t('credits_tooltip', default='Request additional Ficore Credits to use premium features') }}">
+                                    <i class="bi-coin d-block mb-1"></i>
+                                    <small>{{ t('credits_dashboard', default='Ficore Credits') }}</small>
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -191,6 +197,12 @@
                                     <small>{{ t('food_order_create_first', default='Create Food Order') }}</small>
                                 </a>
                             </div>
+                            <div class="col-md-2 col-6">
+                                <a href="{{ url_for('credits.request_credits') }}" class="btn btn-outline-success w-100" data-bs-toggle="tooltip" title="{{ t('credits_tooltip', default='Request additional Ficore Credits to use premium features') }}">
+                                    <i class="bi-coin d-block mb-1"></i>
+                                    <small>{{ t('credits_dashboard', default='Ficore Credits') }}</small>
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -207,7 +219,7 @@
                 <a href="{{ url_for('debtors.add') }}" class="btn btn-primary">{{ t('debtors_create_what_they_owe_you', default='Create What They Owe You') }}</a>
                 <a href="{{ url_for('payments.add') }}" class="btn btn-primary">{{ t('payments_add_money_out', default='Add Money Out') }}</a>
                 <a href="{{ url_for('receipts.add') }}" class="btn btn-primary">{{ t('receipts_add_money_in', default='Add Money In') }}</a>
-                <a href="{{ url_for('credits.request_credits') }}" class="btn btn-success">{{ t('credits_add_credits', default='Add Ficore Credits') }}</a>
+                <a href="{{ url_for('credits.request_credits') }}" class="btn btn-success" data-bs-toggle="tooltip" title="{{ t('credits_tooltip', default='Request additional Ficore Credits to use premium features') }}">{{ t('credits_dashboard', default='Ficore Credits') }}</a>
                 {% if current_user.role == 'admin' %}
                     <a href="{{ url_for('admin.dashboard') }}" class="btn btn-warning">{{ t('admin_dashboard', default='Admin Dashboard') }}</a>
                 {% endif %}
