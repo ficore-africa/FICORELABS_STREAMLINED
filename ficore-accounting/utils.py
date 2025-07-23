@@ -826,18 +826,19 @@ def create_anonymous_session():
                 return
             time.sleep(0.5)
 
-def clean_currency(value):
+def clean_currency(value, max_value=10000000000):
     """
     Clean currency input by removing non-numeric characters, handling various currency formats and edge cases.
     
     Args:
         value: Input value to clean (str, int, float, or None)
+        max_value: Maximum allowed value (default: 10 billion)
     
     Returns:
         float: Cleaned numeric value
     
     Raises:
-        ValidationError: If the input cannot be converted to a valid float for form validation
+        ValidationError: If the input cannot be converted to a valid float or exceeds max_value
     """
     try:
         # Handle None or empty inputs
@@ -850,23 +851,39 @@ def clean_currency(value):
 
         # Handle numeric inputs (int or float)
         if isinstance(value, (int, float)):
-            return float(value)
+            value = float(value)
+            if value > max_value:
+                logger.warning(
+                    f"Currency value exceeds maximum: value={value}, max_value={max_value}",
+                    extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+                )
+                raise ValidationError(trans('bill_amount_max', default=f"Input cannot exceed {max_value:,}", lang=get_user_language()))
+            return value
 
         # Convert to string and normalize
         value_str = str(value).strip()
+        logger.debug(
+            f"clean_currency processing input: '{value_str}'",
+            extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+        )
 
-        # Remove common currency symbols, prefixes, and formatting characters
-        cleaned = re.sub(r'[^\d.-]', '', value_str.replace('NGN', '').replace('₦', '').replace('$', '').replace('€', '').replace('£', ''))
+        # Remove currency symbols and formatting characters (e.g., commas, spaces)
+        cleaned = re.sub(r'[^\d.]', '', value_str.replace('NGN', '').replace('₦', '').replace('$', '').replace('€', '').replace('£', '').replace(',', ''))
+
+        # Handle multiple decimal points
+        parts = cleaned.split('.')
+        if len(parts) > 2:
+            cleaned = parts[0] + '.' + ''.join(parts[1:])
 
         # Validate the cleaned string
-        if not cleaned:
+        if not cleaned or cleaned == '.':
             logger.warning(
                 f"Invalid currency format after cleaning: original='{value_str}', cleaned='{cleaned}'",
                 extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
             )
             raise ValidationError(trans('invalid_currency_format', default='Invalid currency format', lang=get_user_language()))
 
-        # Check for multiple decimal points or negative signs
+        # Check for valid numeric format
         if cleaned.count('.') > 1 or cleaned.count('-') > 1 or (cleaned.count('-') == 1 and not cleaned.startswith('-')):
             logger.warning(
                 f"Invalid currency format: original='{value_str}', cleaned='{cleaned}', multiple decimals or misplaced negative sign",
@@ -874,7 +891,7 @@ def clean_currency(value):
             )
             raise ValidationError(trans('invalid_currency_format', default='Invalid currency format', lang=get_user_language()))
 
-        # Handle negative numbers
+        # Convert to float
         try:
             result = float(cleaned)
             if result < 0:
@@ -883,8 +900,14 @@ def clean_currency(value):
                     extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
                 )
                 raise ValidationError(trans('negative_currency_not_allowed', default='Negative currency values are not allowed', lang=get_user_language()))
+            if result > max_value:
+                logger.warning(
+                    f"Currency value exceeds maximum: original='{value_str}', cleaned='{cleaned}', result={result}, max_value={max_value}",
+                    extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+                )
+                raise ValidationError(trans('bill_amount_max', default=f"Input cannot exceed {max_value:,}", lang=get_user_language()))
             logger.debug(
-                f"clean_currency processed '{value_str}' to {result}",
+                f"clean_currency successfully processed '{value_str}' to {result}",
                 extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
             )
             return result
@@ -917,10 +940,21 @@ def trans_function(key, lang=None, **kwargs):
     """
     try:
         with current_app.app_context():
-            return trans(key, lang=lang, **kwargs)
+            translated = trans(key, lang=lang, **kwargs)
+            if translated == key:  # Translation missing
+                logger.warning(
+                    f"Missing translation for key='{key}' in module='general', lang='{lang or session.get('lang', 'en')}'",
+                    extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+                )
+                return key  # Fallback to the key itself
+            return translated
     except Exception as e:
-        logger.error(f"{trans('general_translation_error', default='Translation error for key')} '{key}': {str(e)}", exc_info=True)
-        return key
+        logger.error(
+            f"Translation error for key '{key}': {str(e)}",
+            exc_info=True,
+            extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+        )
+        return key  # Fallback to the key itself
 
 def is_valid_email(email):
     """
@@ -1101,7 +1135,7 @@ def is_admin():
     except Exception:
         return False
 
-def format_currency(amount, currency='₦', lang=None):
+def format_currency(amount, currency='₦', lang=None, include_symbol=True):
     """
     Format currency amount with proper locale.
     
@@ -1109,6 +1143,7 @@ def format_currency(amount, currency='₦', lang=None):
         amount: Amount to format
         currency: Currency symbol (default: '₦')
         lang: Language code for formatting
+        include_symbol: Whether to include the currency symbol (default: True)
     
     Returns:
         Formatted currency string
@@ -1117,13 +1152,15 @@ def format_currency(amount, currency='₦', lang=None):
         with current_app.app_context():
             if lang is None:
                 lang = session.get('lang', 'en') if has_request_context() else 'en'
-            amount = float(amount) if amount is not None else 0
+            amount = clean_currency(amount) if isinstance(amount, str) else float(amount) if amount is not None else 0
             if amount.is_integer():
-                return f"{currency}{int(amount):,}"
-            return f"{currency}{amount:,.2f}"
-    except (TypeError, ValueError) as e:
+                formatted = f"{int(amount):,}"
+            else:
+                formatted = f"{amount:,.2f}"
+            return f"{currency}{formatted}" if include_symbol else formatted
+    except (TypeError, ValueError, ValidationError) as e:
         logger.warning(f"{trans('general_currency_format_error', default='Error formatting currency')} {amount}: {str(e)}")
-        return f"{currency}0"
+        return f"{currency}0" if include_symbol else "0"
 
 def format_date(date_obj, lang=None, format_type='short'):
     """
