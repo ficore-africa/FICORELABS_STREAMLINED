@@ -89,10 +89,10 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 console.warn('Tools section not found, navigating to first tool URL');
                 const toolUrls = [
-                    'https://financial-health-score-8jvu.onrender.com/inventory/',
-                    'https://financial-health-score-8jvu.onrender.com/creditors/',
-                    'https://financial-health-score-8jvu.onrender.com/coins/history',
-                    'https://financial-health-score-8jvu.onrender.com/debtors/'
+                    'https://ficore-africa.onrender.com/receipt/',
+                    'https://ficore-africa.onrender.com/creditors/',
+                    'https://ficore-africa.onrender.com/credits/history',
+                    'https://ficore-africa.onrender.com/debtors/'
                 ];
                 const firstToolLink = toolUrls
                     .map(url => document.querySelector(`a[href="${url}"]`))
