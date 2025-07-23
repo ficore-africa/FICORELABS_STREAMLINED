@@ -2161,7 +2161,6 @@ h2.card-title {
     }
 }
 
-/* Footer */
 .footer {
     background: var(--footer-bg);
     color: #ffffff;
@@ -2170,6 +2169,9 @@ h2.card-title {
     flex-shrink: 0;
     min-height: var(--footer-height);
     border-top: 1px solid var(--card-border);
+    max-width: 1200px; /* Set a max width to constrain content */
+    margin: 0 auto; /* Center the footer content */
+    box-sizing: border-box; /* Ensure padding is included in width */
 }
 
 .footer a {
@@ -2177,6 +2179,7 @@ h2.card-title {
     text-decoration: none;
     margin: 0 0.5rem;
     font-size: clamp(0.875rem, 2vw, 0.9375rem);
+    white-space: nowrap; /* Prevent individual links from wrapping */
 }
 
 .footer a:hover {
@@ -2184,6 +2187,11 @@ h2.card-title {
     text-decoration: underline;
 }
 
+/* Ensure text content wraps if it gets too long */
+.footer > * {
+    max-width: 100%;
+    overflow-wrap: break-word; /* Allow text to wrap */
+}
 /* Dark Mode Overrides */
 .dark-mode .footer {
     color: #ffffff; /* Ensure white text in dark mode */
