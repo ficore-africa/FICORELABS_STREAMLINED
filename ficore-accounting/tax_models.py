@@ -1,8 +1,13 @@
-from pymongo import ASCENDING
 from datetime import datetime
+from pymongo import ASCENDING
+from pymongo.errors import OperationFailure
 import logging
+from translations import trans
+from bson import ObjectId
 
+# Configure logger for the tax models module
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 # Define tax-related collection schemas
 tax_collection_schemas = {
@@ -99,6 +104,29 @@ tax_collection_schemas = {
             {'key': [('deadline_date', ASCENDING)]},
             {'key': [('session_id', ASCENDING)]}
         ]
+    },
+    'payment_locations': {
+        'validator': {
+            '$jsonSchema': {
+                'bsonType': 'object',
+                'required': ['name', 'address', 'contact'],
+                'properties': {
+                    'name': {'bsonType': 'string'},
+                    'address': {'bsonType': 'string'},
+                    'contact': {'bsonType': 'string'},
+                    'coordinates': {
+                        'bsonType': ['object', 'null'],
+                        'properties': {
+                            'lat': {'bsonType': 'number'},
+                            'lng': {'bsonType': 'number'}
+                        }
+                    }
+                }
+            }
+        },
+        'indexes': [
+            {'key': [('name', ASCENDING)]}
+        ]
     }
 }
 
@@ -147,7 +175,7 @@ def initialize_tax_data(db, trans):
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
-    # Seed vat_rules (example data, adjust as needed)
+    # Seed vat_rules
     try:
         vat_rules_collection = db.vat_rules
         if vat_rules_collection.count_documents({}) == 0:
@@ -171,3 +199,233 @@ def initialize_tax_data(db, trans):
         logger.error(f"Failed to seed vat_rules: {str(e)}", 
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise
+
+def get_tax_rates(db, filter_kwargs):
+    """
+    Retrieve tax rate records based on filter criteria.
+    
+    Args:
+        db: MongoDB database instance
+        filter_kwargs: Dictionary of filter criteria
+    
+    Returns:
+        list: List of tax rate records
+    """
+    try:
+        return list(db.tax_rates.find(filter_kwargs).sort('min_income', ASCENDING))
+    except Exception as e:
+        logger.error(f"{trans('tax_rates_fetch_error', default='Error getting tax rates')}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def get_vat_rules(db, filter_kwargs):
+    """
+    Retrieve VAT rule records based on filter criteria.
+    
+    Args:
+        db: MongoDB database instance
+        filter_kwargs: Dictionary of filter criteria
+    
+    Returns:
+        list: List of VAT rule records
+    """
+    try:
+        return list(db.vat_rules.find(filter_kwargs).sort('category', ASCENDING))
+    except Exception as e:
+        logger.error(f"{trans('vat_rules_fetch_error', default='Error getting VAT rules')}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def get_tax_reminders(db, filter_kwargs):
+    """
+    Retrieve tax reminder records based on filter criteria.
+    
+    Args:
+        db: MongoDB database instance
+        filter_kwargs: Dictionary of filter criteria
+    
+    Returns:
+        list: List of tax reminder records
+    """
+    try:
+        return list(db.tax_reminders.find(filter_kwargs).sort('reminder_date', ASCENDING))
+    except Exception as e:
+        logger.error(f"{trans('tax_reminders_fetch_error', default='Error getting tax reminders')}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def get_tax_deadlines(db, filter_kwargs):
+    """
+    Retrieve tax deadline records based on filter criteria.
+    
+    Args:
+        db: MongoDB database instance
+        filter_kwargs: Dictionary of filter criteria
+    
+    Returns:
+        list: List of tax deadline records
+    """
+    try:
+        return list(db.tax_deadlines.find(filter_kwargs).sort('deadline_date', ASCENDING))
+    except Exception as e:
+        logger.error(f"{trans('tax_deadlines_fetch_error', default='Error getting tax deadlines')}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def get_payment_locations(db, filter_kwargs):
+    """
+    Retrieve payment location records based on filter criteria.
+    
+    Args:
+        db: MongoDB database instance
+        filter_kwargs: Dictionary of filter criteria
+    
+    Returns:
+        list: List of payment location records
+    """
+    try:
+        return list(db.payment_locations.find(filter_kwargs).sort('name', ASCENDING))
+    except Exception as e:
+        logger.error(f"{trans('general_payment_locations_fetch_error', default='Error getting payment locations')}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def create_payment_location(db, location_data):
+    """
+    Create a new payment location in the payment_locations collection.
+    
+    Args:
+        db: MongoDB database instance
+        location_data: Dictionary containing payment location information
+    
+    Returns:
+        str: ID of the created payment location
+    """
+    try:
+        required_fields = ['name', 'address', 'contact']
+        if not all(field in location_data for field in required_fields):
+            raise ValueError(trans('general_missing_location_fields', default='Missing required payment location fields'))
+        result = db.payment_locations.insert_one(location_data)
+        logger.info(f"{trans('general_payment_location_created', default='Created payment location with ID')}: {result.inserted_id}", 
+                   extra={'session_id': 'no-session-id'})
+        return str(result.inserted_id)
+    except Exception as e:
+        logger.error(f"{trans('general_payment_location_creation_error', default='Error creating payment location')}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def update_payment_location(db, location_id, update_data):
+    """
+    Update a payment location in the payment_locations collection.
+    
+    Args:
+        db: MongoDB database instance
+        location_id: The ID of the payment location to update
+        update_data: Dictionary containing fields to update
+    
+    Returns:
+        bool: True if updated, False if not found or no changes made
+    """
+    try:
+        result = db.payment_locations.update_one(
+            {'_id': ObjectId(location_id)},
+            {'$set': update_data}
+        )
+        if result.modified_count > 0:
+            logger.info(f"{trans('general_payment_location_updated', default='Updated payment location with ID')}: {location_id}", 
+                       extra={'session_id': 'no-session-id'})
+            return True
+        logger.info(f"{trans('general_payment_location_no_change', default='No changes made to payment location with ID')}: {location_id}", 
+                   extra={'session_id': 'no-session-id'})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('general_payment_location_update_error', default='Error updating payment location with ID')} {location_id}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def create_vat_rule(db, vat_rule_data):
+    """
+    Create a new VAT rule in the vat_rules collection.
+    
+    Args:
+        db: MongoDB database instance
+        vat_rule_data: Dictionary containing VAT rule information
+    
+    Returns:
+        str: ID of the created VAT rule
+    """
+    try:
+        required_fields = ['category', 'rate', 'description']
+        if not all(field in vat_rule_data for field in required_fields):
+            raise ValueError(trans('vat_missing_rule_fields', default='Missing required VAT rule fields'))
+        result = db.vat_rules.insert_one(vat_rule_data)
+        logger.info(f"{trans('vat_rule_created', default='Created VAT rule with ID')}: {result.inserted_id}", 
+                   extra={'session_id': vat_rule_data.get('session_id', 'no-session-id')})
+        return str(result.inserted_id)
+    except Exception as e:
+        logger.error(f"{trans('vat_rule_creation_error', default='Error creating VAT rule')}: {str(e)}", 
+                    exc_info=True, extra={'session_id': vat_rule_data.get('session_id', 'no-session-id')})
+        raise
+
+def to_dict_tax_rate(record):
+    """Convert tax rate record to dictionary."""
+    if not record:
+        return {'role': None, 'rate': None}
+    return {
+        'id': str(record.get('_id', '')),
+        'role': record.get('role', ''),
+        'min_income': record.get('min_income', 0),
+        'max_income': record.get('max_income', 0),
+        'rate': record.get('rate', 0.0),
+        'description': record.get('description', ''),
+        'session_id': record.get('session_id', None)
+    }
+
+def to_dict_vat_rule(record):
+    """Convert VAT rule record to dictionary."""
+    if not record:
+        return {'category': None, 'rate': None}
+    return {
+        'id': str(record.get('_id', '')),
+        'category': record.get('category', ''),
+        'rate': record.get('rate', 0.0),
+        'description': record.get('description', ''),
+        'session_id': record.get('session_id', None)
+    }
+
+def to_dict_tax_reminder(record):
+    """Convert tax reminder record to dictionary."""
+    if not record:
+        return {'tax_type': None, 'reminder_date': None}
+    return {
+        'id': str(record.get('_id', '')),
+        'user_id': record.get('user_id', ''),
+        'reminder_date': record.get('reminder_date'),
+        'tax_type': record.get('tax_type', ''),
+        'description': record.get('description', ''),
+        'session_id': record.get('session_id', None)
+    }
+
+def to_dict_tax_deadline(record):
+    """Convert tax deadline record to dictionary."""
+    if not record:
+        return {'tax_type': None, 'deadline_date': None}
+    return {
+        'id': str(record.get('_id', '')),
+        'tax_type': record.get('tax_type', ''),
+        'deadline_date': record.get('deadline_date'),
+        'description': record.get('description', ''),
+        'session_id': record.get('session_id', None)
+    }
+
+def to_dict_payment_location(record):
+    """Convert payment location record to dictionary."""
+    if not record:
+        return {'name': None, 'address': None}
+    return {
+        'id': str(record.get('_id', '')),
+        'name': record.get('name', ''),
+        'address': record.get('address', ''),
+        'contact': record.get('contact', ''),
+        'coordinates': record.get('coordinates', {})
+    }
