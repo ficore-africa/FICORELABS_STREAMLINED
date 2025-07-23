@@ -449,6 +449,7 @@ def create_app():
             admin_user = get_user_by_email(db, admin_email)
             if not admin_user:
                 user_data = {
+                    '_id': admin_username.lower(),
                     'username': admin_username.lower(),
                     'email': admin_email.lower(),
                     'password_hash': generate_password_hash(admin_password),
@@ -459,6 +460,7 @@ def create_app():
                     'setup_complete': True,
                     'display_name': admin_username
                 }
+                db.users.insert_one(user_data)
                 create_user(db, user_data)
                 logger.info(f'Admin user created with email: {admin_email}')
             else:
