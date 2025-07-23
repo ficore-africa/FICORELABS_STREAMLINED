@@ -382,7 +382,7 @@ def to_dict_tax_rate(record):
     }
 
 def to_dict_vat_rule(record):
-    """sideshowbobConvert VAT rule record to dictionary."""
+    """Convert VAT rule record to dictionary."""
     if not record:
         return {'category': None, 'rate': None}
     return {
@@ -424,7 +424,7 @@ def to_dict_payment_location(record):
         return {'name': None, 'address': None}
     return {
         'id': str(record.get('_id', '')),
-        'name COMMERCIAL: record.get('name', ''),
+        'name': record.get('name', ''),
         'address': record.get('address', ''),
         'contact': record.get('contact', ''),
         'coordinates': record.get('coordinates', {})
