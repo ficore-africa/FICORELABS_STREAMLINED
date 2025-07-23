@@ -779,16 +779,3 @@ def logout():
         response.headers['Expires'] = '0'
         response.set_cookie(current_app.config['SESSION_COOKIE_NAME'], '', expires=0, httponly=True, secure=current_app.config.get('SESSION_COOKIE_SECURE', True))
         return response
-
-
-@users_bp.route('/auth/signup')
-def signup_redirect():
-    return redirect(url_for('users.signup'))
-
-@users_bp.route('/auth/forgot-password')
-def forgot_password_redirect():
-    return redirect(url_for('users.forgot_password'))
-
-@users_bp.route('/auth/reset-password')
-def reset_password_redirect():
-    return redirect(url_for('users.reset_password'))
