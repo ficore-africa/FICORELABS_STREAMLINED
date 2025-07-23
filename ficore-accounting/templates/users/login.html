@@ -31,6 +31,18 @@
     .login-page .toggle-password-btn:hover i {
         color: #4b5563;
     }
+    .login-page .remember-container {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .login-page .remember-container input[type="checkbox"] {
+        margin: 0;
+        vertical-align: middle;
+    }
+    .login-page .remember-container label {
+        line-height: 1.5;
+    }
 </style>
 <div class="login-page">
     <div class="login-page__container">
@@ -74,9 +86,9 @@
                         </div>
                     {% endif %}
                 </div>
-                <div class="flex items-center">
+                <div class="remember-container">
                     {{ form.remember(class="h-4 w-4 text-indigo-600 border-gray-300 rounded", id="remember") | safe }}
-                    <label for="remember" class="ml-2 text-sm text-gray-900">Remember me</label>
+                    <label for="remember" class="text-sm text-gray-900">Remember me</label>
                 </div>
                 <button type="submit" class="btn btn-primary w-full">Sign In</button>
                 <div class="text-center text-sm">
