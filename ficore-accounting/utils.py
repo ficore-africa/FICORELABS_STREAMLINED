@@ -111,14 +111,6 @@ _PERSONAL_NAV = [
         "icon": "bi-house"
     },
     {
-        "endpoint": "personal.budget.main",
-        "label": "Budget",
-        "label_key": "budget_budget_planner",
-        "description_key": "budget_budget_desc",
-        "tooltip_key": "budget_tooltip",
-        "icon": "bi-wallet"
-    },
-    {
         "endpoint": "personal.bill.main",
         "label": "Bills",
         "label_key": "bill_bill_planner",
