@@ -3142,14 +3142,18 @@ a.text-decoration-none:hover .btn-outline-primary {
     font-size: 1rem;
     color: #333;
 }
-.login-page__main-content {
-    margin-top: 80px;
-    min-height: calc(100vh - 80px);
+.login-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin-top: 100px; /* Increased margin to clear header */
 }
 
 .login-page__container {
     padding-top: 1.5rem;
     padding-bottom: 1.5rem;
+    width: 100%;
 }
 
 .login-page__card {
@@ -3159,8 +3163,8 @@ a.text-decoration-none:hover .btn-outline-primary {
 }
 
 @media (max-width: 640px) {
-    .login-page__main-content {
-        margin-top: 60px;
+    .login-page {
+        margin-top: 80px; /* Adjusted for mobile headers */
     }
     
     .login-page__card {
@@ -3172,10 +3176,6 @@ a.text-decoration-none:hover .btn-outline-primary {
 
 .login-page__form.space-y-4 > div {
     margin-bottom: 1rem;
-}
-
-.login-page__button {
-    margin-top: 1rem;
 }
 
 .login-page__alert {
