@@ -1,6 +1,3 @@
-from datetime import datetime
-from pymongo import ASCENDING, DESCENDING
-from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError, DuplicateKeyError, OperationFailure
 from werkzeug.security import generate_password_hash
 from bson import ObjectId
 import logging
@@ -48,7 +45,7 @@ def initialize_app_data(app):
                 logger.info(f"Attempt {attempt + 1}/{max_retries} - {trans('general_database_connection_established', default='MongoDB connection established')}", 
                            extra={'session_id': 'no-session-id'})
                 break
-            except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+            except Exception as e:
                 logger.error(f"Failed to initialize database (attempt {attempt + 1}/{max_retries}): {str(e)}", 
                             exc_info=True, extra={'session_id': 'no-session-id'})
                 if attempt == max_retries - 1:
@@ -245,29 +242,6 @@ def initialize_app_data(app):
                     },
                     'indexes': [
                         {'key': [('status', ASCENDING)]}
-                    ]
-                },
-                'payment_locations': {
-                    'validator': {
-                        '$jsonSchema': {
-                            'bsonType': 'object',
-                            'required': ['name', 'address', 'contact'],
-                            'properties': {
-                                'name': {'bsonType': 'string'},
-                                'address': {'bsonType': 'string'},
-                                'contact': {'bsonType': 'string'},
-                                'coordinates': {
-                                    'bsonType': ['object', 'null'],
-                                    'properties': {
-                                        'lat': {'bsonType': 'number'},
-                                        'lng': {'bsonType': 'number'}
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    'indexes': [
-                        {'key': [('name', ASCENDING)]}
                     ]
                 },
                 'shopping_items': {
@@ -522,7 +496,7 @@ def initialize_app_data(app):
                         db_instance.command('collMod', collection_name, validator=config.get('validator', {}))
                         logger.info(f"Updated validator for collection: {collection_name}", 
                                     extra={'session_id': 'no-session-id'})
-                    except OperationFailure as e:
+                    except Exception as e:
                         logger.error(f"Failed to update validator for collection {collection_name}: {str(e)}", 
                                     exc_info=True, extra={'session_id': 'no-session-id'})
                         raise
@@ -531,7 +505,7 @@ def initialize_app_data(app):
                         db_instance.create_collection(collection_name, validator=config.get('validator', {}))
                         logger.info(f"{trans('general_collection_created', default='Created collection')}: {collection_name}", 
                                    extra={'session_id': 'no-session-id'})
-                    except OperationFailure as e:
+                    except Exception as e:
                         logger.error(f"Failed to create collection {collection_name}: {str(e)}", 
                                     exc_info=True, extra={'session_id': 'no-session-id'})
                         raise
@@ -557,7 +531,7 @@ def initialize_app_data(app):
                                             db_instance[collection_name].drop_index(existing_index_name)
                                             logger.info(f"Dropped conflicting index {existing_index_name} on {collection_name}", 
                                                        extra={'session_id': 'no-session-id'})
-                                        except OperationFailure as e:
+                                        except Exception as e:
                                             logger.error(f"Failed to drop index {existing_index_name} on {collection_name}: {str(e)}", 
                                                         exc_info=True, extra={'session_id': 'no-session-id'})
                                             raise
@@ -567,7 +541,7 @@ def initialize_app_data(app):
                                     db_instance[collection_name].create_index(keys, name=index_name, **options)
                                     logger.info(f"{trans('general_index_created', default='Created index on')} {collection_name}: {keys} with options {options}", 
                                                extra={'session_id': 'no-session-id'})
-                                except OperationFailure as e:
+                                except Exception as e:
                                     if 'IndexKeySpecsConflict' in str(e):
                                         logger.info(f"Attempting to resolve index conflict for {collection_name}: {index_name}", 
                                                    extra={'session_id': 'no-session-id'})
@@ -597,7 +571,7 @@ def initialize_app_data(app):
                                         db_instance[collection_name].drop_index(existing_index_name)
                                         logger.info(f"Dropped conflicting index {existing_index_name} on {collection_name}", 
                                                    extra={'session_id': 'no-session-id'})
-                                    except OperationFailure as e:
+                                    except Exception as e:
                                         logger.error(f"Failed to drop index {existing_index_name} on {collection_name}: {str(e)}", 
                                                     exc_info=True, extra={'session_id': 'no-session-id'})
                                         raise
@@ -607,7 +581,7 @@ def initialize_app_data(app):
                                 db_instance[collection_name].create_index(keys, name=index_name, **options)
                                 logger.info(f"{trans('general_index_created', default='Created index on')} {collection_name}: {keys} with options {options}", 
                                            extra={'session_id': 'no-session-id'})
-                            except OperationFailure as e:
+                            except Exception as e:
                                 if 'IndexKeySpecsConflict' in str(e):
                                     logger.info(f"Attempting to resolve index conflict for {collection_name}: {index_name}", 
                                                extra={'session_id': 'no-session-id'})
@@ -634,7 +608,7 @@ def initialize_app_data(app):
                     ])
                     logger.info(trans('general_agents_initialized', default='Initialized agents in MongoDB'), 
                                extra={'session_id': 'no-session-id'})
-                except OperationFailure as e:
+                except Exception as e:
                     logger.error(f"Failed to insert sample agents: {str(e)}", exc_info=True, extra={'session_id': 'no-session-id'})
                     raise
             
@@ -727,14 +701,10 @@ def create_user(db, user_data):
             language=user_doc['language'],
             dark_mode=user_doc['dark_mode']
         )
-    except DuplicateKeyError as e:
+    except Exception as e:
         logger.error(f"{trans('general_user_creation_error', default='Error creating user')}: {trans('general_duplicate_key_error', default='Duplicate key error')} - {str(e)}", 
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise ValueError(trans('general_user_exists', default='User with this email or username already exists'))
-    except Exception as e:
-        logger.error(f"{trans('general_user_creation_error', default='Error creating user')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
 
 @lru_cache(maxsize=128)
 def get_user_by_email(db, email):
@@ -985,24 +955,6 @@ def get_bills(db, filter_kwargs):
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
-def get_payment_locations(db, filter_kwargs):
-    """
-    Retrieve payment location records based on filter criteria.
-    
-    Args:
-        db: MongoDB database instance
-        filter_kwargs: Dictionary of filter criteria
-    
-    Returns:
-        list: List of payment location records
-    """
-    try:
-        return list(db.payment_locations.find(filter_kwargs).sort('name', ASCENDING))
-    except Exception as e:
-        logger.error(f"{trans('general_payment_locations_fetch_error', default='Error getting payment locations')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
 def create_feedback(db, feedback_data):
     """
     Create a new feedback record in the feedback collection.
@@ -1048,30 +1000,6 @@ def log_tool_usage(db, tool_name, user_id=None, session_id=None, action=None):
     except Exception as e:
         logger.error(f"{trans('general_tool_usage_log_error', default='Error logging tool usage')}: {str(e)}", 
                     exc_info=True, extra={'session_id': session_id or 'no-session-id'})
-        raise
-
-def create_payment_location(db, location_data):
-    """
-    Create a new payment location in the payment_locations collection.
-    
-    Args:
-        db: MongoDB database instance
-        location_data: Dictionary containing payment location information
-    
-    Returns:
-        str: ID of the created payment location
-    """
-    try:
-        required_fields = ['name', 'address', 'contact']
-        if not all(field in location_data for field in required_fields):
-            raise ValueError(trans('general_missing_location_fields', default='Missing required payment location fields'))
-        result = db.payment_locations.insert_one(location_data)
-        logger.info(f"{trans('general_payment_location_created', default='Created payment location with ID')}: {result.inserted_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return str(result.inserted_id)
-    except Exception as e:
-        logger.error(f"{trans('general_payment_location_creation_error', default='Error creating payment location')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
 def create_budget(db, budget_data):
@@ -1484,18 +1412,6 @@ def to_dict_bill_reminder(record):
         'read_status': record.get('read_status', False)
     }
 
-def to_dict_payment_location(record):
-    """Convert payment location record to dictionary."""
-    if not record:
-        return {'name': None, 'address': None}
-    return {
-        'id': str(record.get('_id', '')),
-        'name': record.get('name', ''),
-        'address': record.get('address', ''),
-        'contact': record.get('contact', ''),
-        'coordinates': record.get('coordinates', {})
-    }
-
 def create_shopping_item(db, item_data):
     """
     Create a new shopping item in the shopping_items collection.
@@ -1763,35 +1679,6 @@ def update_bill_reminder(db, reminder_id, update_data):
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
-def update_payment_location(db, location_id, update_data):
-    """
-    Update a payment location in the payment_locations collection.
-    
-    Args:
-        db: MongoDB database instance
-        location_id: The ID of the payment location to update
-        update_data: Dictionary containing fields to update
-    
-    Returns:
-        bool: True if updated, False if not found or no changes made
-    """
-    try:
-        result = db.payment_locations.update_one(
-            {'_id': ObjectId(location_id)},
-            {'$set': update_data}
-        )
-        if result.modified_count > 0:
-            logger.info(f"{trans('general_payment_location_updated', default='Updated payment location with ID')}: {location_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_payment_location_no_change', default='No changes made to payment location with ID')}: {location_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_payment_location_update_error', default='Error updating payment location with ID')} {location_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
 def create_shopping_list(db, list_data):
     """
     Create a new shopping list in the shopping_lists collection.
@@ -1881,60 +1768,6 @@ def to_dict_shopping_list(record):
         'status': record.get('status', '')
     }
 
-def create_pending_deletion(db, deletion_data):
-    """
-    Create a new pending deletion record in the pending_deletions collection.
-    
-    Args:
-        db: MongoDB database instance
-        deletion_data: Dictionary containing pending deletion information
-    
-    Returns:
-        str: ID of the created pending deletion record
-    """
-    try:
-        required_fields = ['list_id', 'created_at', 'expires_at']
-        if not all(field in deletion_data for field in required_fields):
-            raise ValueError(trans('general_missing_pending_deletion_fields', default='Missing required pending deletion fields'))
-        result = db.pending_deletions.insert_one(deletion_data)
-        logger.info(f"{trans('general_pending_deletion_created', default='Created pending deletion with ID')}: {result.inserted_id}", 
-                   extra={'session_id': deletion_data.get('session_id', 'no-session-id')})
-        return str(result.inserted_id)
-    except Exception as e:
-        logger.error(f"{trans('general_pending_deletion_creation_error', default='Error creating pending deletion')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': deletion_data.get('session_id', 'no-session-id')})
-        raise
-
-def get_pending_deletions(db, filter_kwargs):
-    """
-    Retrieve pending deletion records based on filter criteria.
-    
-    Args:
-        db: MongoDB database instance
-        filter_kwargs: Dictionary of filter criteria
-    
-    Returns:
-        list: List of pending deletion records
-    """
-    try:
-        return list(db.pending_deletions.find(filter_kwargs).sort('created_at', DESCENDING))
-    except Exception as e:
-        logger.error(f"{trans('general_pending_deletions_fetch_error', default='Error getting pending deletions')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def to_dict_pending_deletion(record):
-    """Convert pending deletion record to dictionary."""
-    if not record:
-        return {'list_id': None, 'created_at': None}
-    return {
-        'id': str(record.get('_id', '')),
-        'list_id': record.get('list_id', ''),
-        'user_id': record.get('user_id', ''),
-        'created_at': record.get('created_at'),
-        'expires_at': record.get('expires_at')
-    }
-
 def create_food_order(db, order_data):
     """
     Create a new food order in the food_orders collection.
@@ -1950,7 +1783,6 @@ def create_food_order(db, order_data):
         required_fields = ['user_id', 'name', 'vendor', 'total_cost', 'created_at', 'updated_at', 'shared_with', 'items']
         if not all(field in order_data for field in required_fields):
             raise ValueError(trans('general_missing_food_order_fields', default='Missing required food order fields'))
-        order_data['_id'] = ObjectId()
         result = db.food_orders.insert_one(order_data)
         logger.info(f"{trans('general_food_order_created', default='Created food order with ID')}: {result.inserted_id}", 
                    extra={'session_id': order_data.get('session_id', 'no-session-id')})
@@ -2024,92 +1856,58 @@ def update_food_order(db, order_id, update_data):
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
-def create_session(db, session_data):
+def create_pending_deletion(db, deletion_data):
     """
-    Create a new session in the sessions collection.
+    Create a new pending deletion record in the pending_deletions collection.
     
     Args:
         db: MongoDB database instance
-        session_data: Dictionary containing session information
+        deletion_data: Dictionary containing pending deletion information
     
     Returns:
-        str: ID of the created session
+        str: ID of the created pending deletion record
     """
     try:
-        required_fields = ['_id', 'data', 'expiration']
-        if not all(field in session_data for field in required_fields):
-            raise ValueError(trans('general_missing_session_fields', default='Missing required session fields'))
-        result = db.sessions.insert_one(session_data)
-        logger.info(f"{trans('general_session_created', default='Created session with ID')}: {result.inserted_id}", 
-                   extra={'session_id': session_data.get('_id', 'no-session-id')})
+        required_fields = ['list_id', 'created_at', 'expires_at']
+        if not all(field in deletion_data for field in required_fields):
+            raise ValueError(trans('general_missing_pending_deletion_fields', default='Missing required pending deletion fields'))
+        result = db.pending_deletions.insert_one(deletion_data)
+        logger.info(f"{trans('general_pending_deletion_created', default='Created pending deletion with ID')}: {result.inserted_id}", 
+                   extra={'session_id': deletion_data.get('session_id', 'no-session-id')})
         return str(result.inserted_id)
     except Exception as e:
-        logger.error(f"{trans('general_session_creation_error', default='Error creating session')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': session_data.get('_id', 'no-session-id')})
+        logger.error(f"{trans('general_pending_deletion_creation_error', default='Error creating pending deletion')}: {str(e)}", 
+                    exc_info=True, extra={'session_id': deletion_data.get('session_id', 'no-session-id')})
         raise
 
-def get_session(db, session_id):
+def get_pending_deletions(db, filter_kwargs):
     """
-    Retrieve a session by ID from the sessions collection.
+    Retrieve pending deletion records based on filter criteria.
     
     Args:
         db: MongoDB database instance
-        session_id: The session ID to retrieve
+        filter_kwargs: Dictionary of filter criteria
     
     Returns:
-        dict: Session document or None if not found
+        list: List of pending deletion records
     """
     try:
-        session_doc = db.sessions.find_one({'_id': session_id})
-        if session_doc:
-            return {
-                '_id': session_doc['_id'],
-                'data': session_doc['data'],
-                'expiration': session_doc['expiration']
-            }
-        return None
+        return list(db.pending_deletions.find(filter_kwargs).sort('created_at', DESCENDING))
     except Exception as e:
-        logger.error(f"{trans('general_session_fetch_error', default='Error getting session by ID')} {session_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': session_id})
+        logger.error(f"{trans('general_pending_deletions_fetch_error', default='Error getting pending deletions')}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
-def update_session(db, session_id, update_data):
-    """
-    Update a session in the sessions collection.
-    
-    Args:
-        db: MongoDB database instance
-        session_id: The ID of the session to update
-        update_data: Dictionary containing fields to update
-    
-    Returns:
-        bool: True if updated, False if not found or no changes made
-    """
-    try:
-        result = db.sessions.update_one(
-            {'_id': session_id},
-            {'$set': update_data}
-        )
-        if result.modified_count > 0:
-            logger.info(f"{trans('general_session_updated', default='Updated session with ID')}: {session_id}", 
-                       extra={'session_id': session_id})
-            return True
-        logger.info(f"{trans('general_session_no_change', default='No changes made to session with ID')}: {session_id}", 
-                   extra={'session_id': session_id})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_session_update_error', default='Error updating session with ID')} {session_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': session_id})
-        raise
-
-def to_dict_session(record):
-    """Convert session record to dictionary."""
+def to_dict_pending_deletion(record):
+    """Convert pending deletion record to dictionary."""
     if not record:
-        return {'_id': None, 'data': None}
+        return {'list_id': None, 'expires_at': None}
     return {
-        '_id': record.get('_id', ''),
-        'data': record.get('data', {}),
-        'expiration': record.get('expiration')
+        'id': str(record.get('_id', '')),
+        'list_id': record.get('list_id', ''),
+        'user_id': record.get('user_id', ''),
+        'created_at': record.get('created_at'),
+        'expires_at': record.get('expires_at')
     }
 
 def delete_pending_deletion(db, deletion_id):
@@ -2135,324 +1933,4 @@ def delete_pending_deletion(db, deletion_id):
     except Exception as e:
         logger.error(f"{trans('general_pending_deletion_delete_error', default='Error deleting pending deletion with ID')} {deletion_id}: {str(e)}", 
                     exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_shopping_list(db, list_id):
-    """
-    Delete a shopping list and its associated items from the shopping_lists and shopping_items collections.
-    
-    Args:
-        db: MongoDB database instance
-        list_id: The ID of the shopping list to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        # Delete associated shopping items
-        db.shopping_items.delete_many({'list_id': list_id})
-        # Delete the shopping list
-        result = db.shopping_lists.delete_one({'_id': ObjectId(list_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_shopping_list_deleted', default='Deleted shopping list with ID')}: {list_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_shopping_list_no_change', default='No shopping list found with ID')}: {list_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_shopping_list_delete_error', default='Error deleting shopping list with ID')} {list_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_shopping_item(db, item_id):
-    """
-    Delete a shopping item from the shopping_items collection.
-    
-    Args:
-        db: MongoDB database instance
-        item_id: The ID of the shopping item to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.shopping_items.delete_one({'_id': ObjectId(item_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_shopping_item_deleted', default='Deleted shopping item with ID')}: {item_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_shopping_item_no_change', default='No shopping item found with ID')}: {item_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_shopping_item_delete_error', default='Error deleting shopping item with ID')} {item_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_food_order(db, order_id):
-    """
-    Delete a food order from the food_orders collection.
-    
-    Args:
-        db: MongoDB database instance
-        order_id: The ID of the food order to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.food_orders.delete_one({'_id': ObjectId(order_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_food_order_deleted', default='Deleted food order with ID')}: {order_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_food_order_no_change', default='No food order found with ID')}: {order_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_food_order_delete_error', default='Error deleting food order with ID')} {order_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_record(db, record_id):
-    """
-    Delete a record from the records collection.
-    
-    Args:
-        db: MongoDB database instance
-        record_id: The ID of the record to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.records.delete_one({'_id': ObjectId(record_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_record_deleted', default='Deleted record with ID')}: {record_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_record_no_change', default='No record found with ID')}: {record_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_record_delete_error', default='Error deleting record with ID')} {record_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_cashflow(db, cashflow_id):
-    """
-    Delete a cashflow record from the cashflows collection.
-    
-    Args:
-        db: MongoDB database instance
-        cashflow_id: The ID of the cashflow record to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.cashflows.delete_one({'_id': ObjectId(cashflow_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_cashflow_deleted', default='Deleted cashflow record with ID')}: {cashflow_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_cashflow_no_change', default='No cashflow record found with ID')}: {cashflow_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_cashflow_delete_error', default='Error deleting cashflow record with ID')} {cashflow_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_ficore_credit_transaction(db, transaction_id):
-    """
-    Delete a ficore credit transaction from the ficore_credit_transactions collection.
-    
-    Args:
-        db: MongoDB database instance
-        transaction_id: The ID of the transaction to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.ficore_credit_transactions.delete_one({'_id': ObjectId(transaction_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('credits_transaction_deleted', default='Deleted ficore credit transaction with ID')}: {transaction_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('credits_transaction_no_change', default='No ficore credit transaction found with ID')}: {transaction_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('credits_transaction_delete_error', default='Error deleting ficore credit transaction with ID')} {transaction_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_budget(db, budget_id):
-    """
-    Delete a budget record from the budgets collection.
-    
-    Args:
-        db: MongoDB database instance
-        budget_id: The ID of the budget record to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.budgets.delete_one({'_id': ObjectId(budget_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_budget_deleted', default='Deleted budget record with ID')}: {budget_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_budget_no_change', default='No budget record found with ID')}: {budget_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_budget_delete_error', default='Error deleting budget record with ID')} {budget_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_bill(db, bill_id):
-    """
-    Delete a bill record from the bills collection.
-    
-    Args:
-        db: MongoDB database instance
-        bill_id: The ID of the bill record to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.bills.delete_one({'_id': ObjectId(bill_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_bill_deleted', default='Deleted bill record with ID')}: {bill_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_bill_no_change', default='No bill record found with ID')}: {bill_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_bill_delete_error', default='Error deleting bill record with ID')} {bill_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_bill_reminder(db, reminder_id):
-    """
-    Delete a bill reminder from the bill_reminders collection.
-    
-    Args:
-        db: MongoDB database instance
-        reminder_id: The ID of the bill reminder to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.bill_reminders.delete_one({'_id': ObjectId(reminder_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_bill_reminder_deleted', default='Deleted bill reminder with ID')}: {reminder_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_bill_reminder_no_change', default='No bill reminder found with ID')}: {reminder_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_bill_reminder_delete_error', default='Error deleting bill reminder with ID')} {reminder_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_payment_location(db, location_id):
-    """
-    Delete a payment location from the payment_locations collection.
-    
-    Args:
-        db: MongoDB database instance
-        location_id: The ID of the payment location to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.payment_locations.delete_one({'_id': ObjectId(location_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_payment_location_deleted', default='Deleted payment location with ID')}: {location_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_payment_location_no_change', default='No payment location found with ID')}: {location_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_payment_location_delete_error', default='Error deleting payment location with ID')} {location_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_user(db, user_id):
-    """
-    Delete a user and their associated data from all relevant collections.
-    
-    Args:
-        db: MongoDB database instance
-        user_id: The ID of the user to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        # Delete associated data from all collections
-        db.records.delete_many({'user_id': user_id})
-        db.cashflows.delete_many({'user_id': user_id})
-        db.ficore_credit_transactions.delete_many({'user_id': user_id})
-        db.credit_requests.delete_many({'user_id': user_id})
-        db.budgets.delete_many({'user_id': user_id})
-        db.bills.delete_many({'user_id': user_id})
-        db.bill_reminders.delete_many({'user_id': user_id})
-        db.shopping_items.delete_many({'user_id': user_id})
-        db.shopping_lists.delete_many({'user_id': user_id})
-        db.pending_deletions.delete_many({'user_id': user_id})
-        db.food_orders.delete_many({'user_id': user_id})
-        db.feedback.delete_many({'user_id': user_id})
-        
-        # Delete the user
-        result = db.users.delete_one({'_id': user_id})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_user_deleted', default='Deleted user with ID')}: {user_id}", 
-                       extra={'session_id': 'no-session-id'})
-            get_user.cache_clear()
-            get_user_by_email.cache_clear()
-            return True
-        logger.info(f"{trans('general_user_no_change', default='No user found with ID')}: {user_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_user_delete_error', default='Error deleting user with ID')} {user_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_session(db, session_id):
-    """
-    Delete a session from the sessions collection.
-    
-    Args:
-        db: MongoDB database instance
-        session_id: The ID of the session to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.sessions.delete_one({'_id': session_id})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_session_deleted', default='Deleted session with ID')}: {session_id}", 
-                       extra={'session_id': session_id})
-            return True
-        logger.info(f"{trans('general_session_no_change', default='No session found with ID')}: {session_id}", 
-                   extra={'session_id': session_id})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_session_delete_error', default='Error deleting session with ID')} {session_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': session_id})
         raise
