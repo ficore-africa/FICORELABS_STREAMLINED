@@ -2,7 +2,7 @@
 {% block title %}Sign In{% endblock %}
 {% block content %}
 <div class="login-page">
-    <div class="login-page__container mx-auto px-4">
+    <div class="login-page__container">
         <div class="login-page__card max-w-md mx-auto bg-white rounded-lg shadow p-6">
             <h1 class="text-2xl font-bold text-center text-gray-800 mb-6">Sign In</h1>
             {% with messages = get_flashed_messages(with_categories=true) %}
@@ -43,7 +43,7 @@
                     {{ form.remember(class="h-4 w-4 text-indigo-600 border-gray-300 rounded", id="remember") | safe }}
                     <label for="remember" class="ml-2 text-sm text-gray-900">Remember me</label>
                 </div>
-                <button type="submit" class="login-page__button w-full py-2 px-4 rounded text-white bg-indigo-600 hover:bg-indigo-700">Sign In</button>
+                <button type="submit" class="btn btn-primary w-full">Sign In</button>
                 <div class="text-center text-sm">
                     <a href="{{ url_for('users.forgot_password') }}" class="text-indigo-600 hover:text-indigo-500">Forgot Password?</a>
                     <br>
