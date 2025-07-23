@@ -780,9 +780,6 @@ def logout():
         response.set_cookie(current_app.config['SESSION_COOKIE_NAME'], '', expires=0, httponly=True, secure=current_app.config.get('SESSION_COOKIE_SECURE', True))
         return response
 
-@users_bp.route('/auth/signin')
-def signin():
-    return redirect(url_for('users.login'))
 
 @users_bp.route('/auth/signup')
 def signup_redirect():
