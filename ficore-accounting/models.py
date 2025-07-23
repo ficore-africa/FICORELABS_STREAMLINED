@@ -247,27 +247,6 @@ def initialize_app_data(app):
                         {'key': [('status', ASCENDING)]}
                     ]
                 },
-                'tax_rates': {
-                    'validator': {
-                        '$jsonSchema': {
-                            'bsonType': 'object',
-                            'required': ['role', 'min_income', 'max_income', 'rate', 'description'],
-                            'properties': {
-                                'role': {'enum': ['personal', 'trader', 'agent', 'company']},
-                                'min_income': {'bsonType': 'number'},
-                                'max_income': {'bsonType': 'number'},
-                                'rate': {'bsonType': 'number', 'minimum': 0, 'maximum': 1},
-                                'description': {'bsonType': 'string'},
-                                'session_id': {'bsonType': ['string', 'null']}
-                            }
-                        }
-                    },
-                    'indexes': [
-                        {'key': [('role', ASCENDING)]},
-                        {'key': [('min_income', ASCENDING)]},
-                        {'key': [('session_id', ASCENDING)]}
-                    ]
-                },
                 'payment_locations': {
                     'validator': {
                         '$jsonSchema': {
@@ -289,70 +268,6 @@ def initialize_app_data(app):
                     },
                     'indexes': [
                         {'key': [('name', ASCENDING)]}
-                    ]
-                },
-                'tax_reminders': {
-                    'validator': {
-                        '$jsonSchema': {
-                            'bsonType': 'object',
-                            'required': ['user_id', 'tax_type', 'due_date', 'amount', 'status', 'created_at'],
-                            'properties': {
-                                'user_id': {'bsonType': 'string'},
-                                'session_id': {'bsonType': ['string', 'null']},
-                                'tax_type': {'bsonType': 'string'},
-                                'due_date': {'bsonType': 'date'},
-                                'amount': {'bsonType': 'number', 'minimum': 0},
-                                'status': {'enum': ['pending', 'paid', 'overdue']},
-                                'created_at': {'bsonType': 'date'},
-                                'updated_at': {'bsonType': ['date', 'null']}
-                            }
-                        }
-                    },
-                    'indexes': [
-                        {'key': [('user_id', ASCENDING)]},
-                        {'key': [('session_id', ASCENDING)]},
-                        {'key': [('due_date', ASCENDING)]}
-                    ]
-                },
-                'vat_rules': {
-                    'validator': {
-                        '$jsonSchema': {
-                            'bsonType': 'object',
-                            'required': ['category', 'vat_exempt', 'description'],
-                            'properties': {
-                                'category': {'bsonType': 'string'},
-                                'vat_exempt': {'bsonType': 'bool'},
-                                'description': {'bsonType': 'string'},
-                                'session_id': {'bsonType': ['string', 'null']}
-                            }
-                        }
-                    },
-                    'indexes': [
-                        {'key': [('category', ASCENDING)], 'unique': True},
-                        {'key': [('session_id', ASCENDING)]}
-                    ]
-                },
-                'tax_deadlines': {
-                    'validator': {
-                        '$jsonSchema': {
-                            'bsonType': 'object',
-                            'required': ['deadline_date', 'description', 'created_at'],
-                            'properties': {
-                                'deadline_date': {'bsonType': 'date'},
-                                'description': {'bsonType': 'string'},
-                                'created_at': {'bsonType': 'date'},
-                                'session_id': {'bsonType': ['string', 'null']},
-                                'user_id': {'bsonType': ['string', 'null']},
-                                'list_id': {'bsonType': ['string', 'null']},
-                                'updated_at': {'bsonType': ['date', 'null']}
-                            }
-                        }
-                    },
-                    'indexes': [
-                        {'key': [('deadline_date', ASCENDING)]},
-                        {'key': [('user_id', ASCENDING), ('created_at', DESCENDING)]},
-                        {'key': [('list_id', ASCENDING), ('created_at', DESCENDING)]},
-                        {'key': [('updated_at', DESCENDING)]}
                     ]
                 },
                 'shopping_items': {
@@ -723,25 +638,6 @@ def initialize_app_data(app):
                     logger.error(f"Failed to insert sample agents: {str(e)}", exc_info=True, extra={'session_id': 'no-session-id'})
                     raise
             
-            # Initialize VAT rules
-            vat_rules_collection = db_instance.vat_rules
-            if vat_rules_collection.count_documents({}) == 0:
-                try:
-                    vat_rules_collection.insert_many([
-                        {'category': 'food', 'vat_exempt': True, 'description': trans('tax_vat_exempt_food', default='Food items are VAT-exempt'), 'session_id': None},
-                        {'category': 'healthcare', 'vat_exempt': True, 'description': trans('tax_vat_exempt_healthcare', default='Healthcare services are VAT-exempt'), 'session_id': None},
-                        {'category': 'education', 'vat_exempt': True, 'description': trans('tax_vat_exempt_education', default='Educational services are VAT-exempt'), 'session_id': None},
-                        {'category': 'rent', 'vat_exempt': True, 'description': trans('tax_vat_exempt_rent', default='Rent is VAT-exempt'), 'session_id': None},
-                        {'category': 'power', 'vat_exempt': True, 'description': trans('tax_vat_exempt_power', default='Power supply is VAT-exempt'), 'session_id': None},
-                        {'category': 'baby_products', 'vat_exempt': True, 'description': trans('tax_vat_exempt_baby_products', default='Baby products are VAT-exempt'), 'session_id': None},
-                        {'category': 'other', 'vat_exempt': False, 'description': trans('tax_vat_default', default='Default 7.5% VAT applied'), 'session_id': None}
-                    ])
-                    logger.info(trans('general_vat_rules_initialized', default='Initialized VAT rules in MongoDB'), 
-                                extra={'session_id': 'no-session-id'})
-                except OperationFailure as e:
-                    logger.error(f"Failed to insert VAT rules: {str(e)}", exc_info=True, extra={'session_id': 'no-session-id'})
-                    raise
-            
         except Exception as e:
             logger.error(f"{trans('general_database_initialization_failed', default='Failed to initialize database')}: {str(e)}", 
                         exc_info=True, extra={'session_id': 'no-session-id'})
@@ -1089,24 +985,6 @@ def get_bills(db, filter_kwargs):
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
-def get_tax_rates(db, filter_kwargs):
-    """
-    Retrieve tax rate records based on filter criteria.
-    
-    Args:
-        db: MongoDB database instance
-        filter_kwargs: Dictionary of filter criteria
-    
-    Returns:
-        list: List of tax rate records
-    """
-    try:
-        return list(db.tax_rates.find(filter_kwargs).sort('min_income', ASCENDING))
-    except Exception as e:
-        logger.error(f"{trans('general_tax_rates_fetch_error', default='Error getting tax rates')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
 def get_payment_locations(db, filter_kwargs):
     """
     Retrieve payment location records based on filter criteria.
@@ -1122,60 +1000,6 @@ def get_payment_locations(db, filter_kwargs):
         return list(db.payment_locations.find(filter_kwargs).sort('name', ASCENDING))
     except Exception as e:
         logger.error(f"{trans('general_payment_locations_fetch_error', default='Error getting payment locations')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def get_tax_reminders(db, filter_kwargs):
-    """
-    Retrieve tax reminder records based on filter criteria.
-    
-    Args:
-        db: MongoDB database instance
-        filter_kwargs: Dictionary of filter criteria
-    
-    Returns:
-        list: List of tax reminder records
-    """
-    try:
-        return list(db.tax_reminders.find(filter_kwargs).sort('due_date', ASCENDING))
-    except Exception as e:
-        logger.error(f"{trans('general_tax_reminders_fetch_error', default='Error getting tax reminders')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def get_vat_rules(db, filter_kwargs):
-    """
-    Retrieve VAT rule records based on filter criteria.
-    
-    Args:
-        db: MongoDB database instance
-        filter_kwargs: Dictionary of filter criteria
-    
-    Returns:
-        list: List of VAT rule records
-    """
-    try:
-        return list(db.vat_rules.find(filter_kwargs).sort('category', ASCENDING))
-    except Exception as e:
-        logger.error(f"{trans('general_vat_rules_fetch_error', default='Error getting VAT rules')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def get_tax_deadlines(db, filter_kwargs):
-    """
-    Retrieve tax deadline records based on filter criteria.
-    
-    Args:
-        db: MongoDB database instance
-        filter_kwargs: Dictionary of filter criteria
-    
-    Returns:
-        list: List of tax deadline records
-    """
-    try:
-        return list(db.tax_deadlines.find(filter_kwargs).sort('deadline_date', ASCENDING))
-    except Exception as e:
-        logger.error(f"{trans('general_tax_deadlines_fetch_error', default='Error getting tax deadlines')}: {str(e)}", 
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
@@ -1226,58 +1050,6 @@ def log_tool_usage(db, tool_name, user_id=None, session_id=None, action=None):
                     exc_info=True, extra={'session_id': session_id or 'no-session-id'})
         raise
 
-def create_tax_rate(db, tax_rate_data):
-    """
-    Create a new tax rate in the tax_rates collection.
-    
-    Args:
-        db: MongoDB database instance
-        tax_rate_data: Dictionary containing tax rate information
-    
-    Returns:
-        str: ID of the created tax rate
-    """
-    try:
-        required_fields = ['role', 'min_income', 'max_income', 'rate', 'description']
-        if not all(field in tax_rate_data for field in required_fields):
-            raise ValueError(trans('general_missing_tax_rate_fields', default='Missing required tax rate fields'))
-        result = db.tax_rates.insert_one(tax_rate_data)
-        logger.info(f"{trans('general_tax_rate_created', default='Created tax rate with ID')}: {result.inserted_id}", 
-                   extra={'session_id': tax_rate_data.get('session_id', 'no-session-id')})
-        return str(result.inserted_id)
-    except Exception as e:
-        logger.error(f"{trans('general_tax_rate_creation_error', default='Error creating tax rate')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': tax_rate_data.get('session_id', 'no-session-id')})
-        raise
-
-def create_vat_rule(db, vat_rule_data):
-    """
-    Create a new VAT rule in the vat_rules collection.
-    
-    Args:
-        db: MongoDB database instance
-        vat_rule_data: Dictionary containing VAT rule information (category, vat_exempt, description)
-    
-    Returns:
-        str: ID of the created VAT rule
-    """
-    try:
-        required_fields = ['category', 'vat_exempt', 'description']
-        if not all(field in vat_rule_data for field in required_fields):
-            raise ValueError(trans('general_missing_vat_rule_fields', default='Missing required VAT rule fields'))
-        result = db.vat_rules.insert_one(vat_rule_data)
-        logger.info(f"{trans('general_vat_rule_created', default='Created VAT rule with ID')}: {result.inserted_id}", 
-                   extra={'session_id': vat_rule_data.get('session_id', 'no-session-id')})
-        return str(result.inserted_id)
-    except DuplicateKeyError as e:
-        logger.error(f"{trans('general_vat_rule_creation_error', default='Error creating VAT rule')}: {trans('general_duplicate_key_error', default='Duplicate category error')} - {str(e)}", 
-                    exc_info=True, extra={'session_id': vat_rule_data.get('session_id', 'no-session-id')})
-        raise ValueError(trans('general_vat_rule_exists', default='VAT rule with this category already exists'))
-    except Exception as e:
-        logger.error(f"{trans('general_vat_rule_creation_error', default='Error creating VAT rule')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': vat_rule_data.get('session_id', 'no-session-id')})
-        raise
-
 def create_payment_location(db, location_data):
     """
     Create a new payment location in the payment_locations collection.
@@ -1299,89 +1071,6 @@ def create_payment_location(db, location_data):
         return str(result.inserted_id)
     except Exception as e:
         logger.error(f"{trans('general_payment_location_creation_error', default='Error creating payment location')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def create_tax_reminder(db, reminder_data):
-    """
-    Create a new tax reminder in the tax_reminders collection.
-    
-    Args:
-        db: MongoDB database instance
-        reminder_data: Dictionary containing tax reminder information (message as tax_type, reminder_date as due_date)
-    
-    Returns:
-        str: ID of the created tax reminder
-    """
-    try:
-        required_fields = ['user_id', 'tax_type', 'due_date', 'amount', 'status', 'created_at']
-        if not all(field in reminder_data for field in required_fields):
-            if 'message' in reminder_data:
-                reminder_data['tax_type'] = reminder_data.pop('message')
-            if 'reminder_date' in reminder_data:
-                reminder_data['due_date'] = reminder_data.pop('reminder_date')
-            if not all(field in reminder_data for field in required_fields):
-                raise ValueError(trans('general_missing_reminder_fields', default='Missing required tax reminder fields'))
-        result = db.tax_reminders.insert_one(reminder_data)
-        logger.info(f"{trans('general_tax_reminder_created', default='Created tax reminder with ID')}: {result.inserted_id}", 
-                   extra={'session_id': reminder_data.get('session_id', 'no-session-id')})
-        return str(result.inserted_id)
-    except Exception as e:
-        logger.error(f"{trans('general_tax_reminder_creation_error', default='Error creating tax reminder')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': reminder_data.get('session_id', 'no-session-id')})
-        raise
-
-def create_tax_deadline(db, deadline_data):
-    """
-    Create a new tax deadline in the tax_deadlines collection.
-    
-    Args:
-        db: MongoDB database instance
-        deadline_data: Dictionary containing tax deadline information
-    
-    Returns:
-        str: ID of the created tax deadline
-    """
-    try:
-        required_fields = ['deadline_date', 'description', 'created_at']
-        if not all(field in deadline_data for field in required_fields):
-            raise ValueError(trans('general_missing_deadline_fields', default='Missing required tax deadline fields'))
-        result = db.tax_deadlines.insert_one(deadline_data)
-        logger.info(f"{trans('general_tax_deadline_created', default='Created tax deadline with ID')}: {result.inserted_id}", 
-                   extra={'session_id': deadline_data.get('session_id', 'no-session-id')})
-        return str(result.inserted_id)
-    except Exception as e:
-        logger.error(f"{trans('general_tax_deadline_creation_error', default='Error creating tax deadline')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': deadline_data.get('session_id', 'no-session-id')})
-        raise
-
-def update_tax_reminder(db, reminder_id, update_data):
-    """
-    Update a tax reminder in the tax_reminders collection.
-    
-    Args:
-        db: MongoDB database instance
-        reminder_id: The ID of the tax reminder to update
-        update_data: Dictionary containing fields to update (e.g., status, amount, due_date)
-    
-    Returns:
-        bool: True if updated, False if not found or no changes made
-    """
-    try:
-        update_data['updated_at'] = datetime.utcnow()
-        result = db.tax_reminders.update_one(
-            {'_id': ObjectId(reminder_id)},
-            {'$set': update_data}
-        )
-        if result.modified_count > 0:
-            logger.info(f"{trans('general_tax_reminder_updated', default='Updated tax reminder with ID')}: {reminder_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_tax_reminder_no_change', default='No changes made to tax reminder with ID')}: {reminder_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_tax_reminder_update_error', default='Error updating tax reminder with ID')} {reminder_id}: {str(e)}", 
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
@@ -1795,19 +1484,6 @@ def to_dict_bill_reminder(record):
         'read_status': record.get('read_status', False)
     }
 
-def to_dict_tax_rate(record):
-    """Convert tax rate record to dictionary."""
-    if not record:
-        return {'role': None, 'rate': None}
-    return {
-        'id': str(record.get('_id', '')),
-        'role': record.get('role', ''),
-        'min_income': record.get('min_income', 0),
-        'max_income': record.get('max_income', 0),
-        'rate': record.get('rate', 0),
-        'description': record.get('description', '')
-    }
-
 def to_dict_payment_location(record):
     """Convert payment location record to dictionary."""
     if not record:
@@ -1818,43 +1494,6 @@ def to_dict_payment_location(record):
         'address': record.get('address', ''),
         'contact': record.get('contact', ''),
         'coordinates': record.get('coordinates', {})
-    }
-
-def to_dict_tax_reminder(record):
-    """Convert tax reminder record to dictionary."""
-    if not record:
-        return {'tax_type': None, 'amount': None}
-    return {
-        'id': str(record.get('_id', '')),
-        'user_id': record.get('user_id', ''),
-        'tax_type': record.get('tax_type', ''),
-        'due_date': record.get('due_date'),
-        'amount': record.get('amount', 0),
-        'status': record.get('status', ''),
-        'created_at': record.get('created_at'),
-        'updated_at': record.get('updated_at')
-    }
-
-def to_dict_vat_rule(record):
-    """Convert VAT rule record to dictionary."""
-    if not record:
-        return {'category': None, 'vat_exempt': None}
-    return {
-        'id': str(record.get('_id', '')),
-        'category': record.get('category', ''),
-        'vat_exempt': record.get('vat_exempt', False),
-        'description': record.get('description', '')
-    }
-
-def to_dict_tax_deadline(record):
-    """Convert tax deadline record to dictionary."""
-    if not record:
-        return {'deadline_date': None, 'description': None}
-    return {
-        'id': str(record.get('_id', '')),
-        'deadline_date': record.get('deadline_date'),
-        'description': record.get('description', ''),
-        'created_at': record.get('created_at')
     }
 
 def create_shopping_item(db, item_data):
@@ -2124,64 +1763,6 @@ def update_bill_reminder(db, reminder_id, update_data):
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
-def update_tax_rate(db, tax_rate_id, update_data):
-    """
-    Update a tax rate in the tax_rates collection.
-    
-    Args:
-        db: MongoDB database instance
-        tax_rate_id: The ID of the tax rate to update
-        update_data: Dictionary containing fields to update
-    
-    Returns:
-        bool: True if updated, False if not found or no changes made
-    """
-    try:
-        result = db.tax_rates.update_one(
-            {'_id': ObjectId(tax_rate_id)},
-            {'$set': update_data}
-        )
-        if result.modified_count > 0:
-            logger.info(f"{trans('general_tax_rate_updated', default='Updated tax rate with ID')}: {tax_rate_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_tax_rate_no_change', default='No changes made to tax rate with ID')}: {tax_rate_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_tax_rate_update_error', default='Error updating tax rate with ID')} {tax_rate_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def update_vat_rule(db, vat_rule_id, update_data):
-    """
-    Update a VAT rule in the vat_rules collection.
-    
-    Args:
-        db: MongoDB database instance
-        vat_rule_id: The ID of the VAT rule to update
-        update_data: Dictionary containing fields to update
-    
-    Returns:
-        bool: True if updated, False if not found or no changes made
-    """
-    try:
-        result = db.vat_rules.update_one(
-            {'_id': ObjectId(vat_rule_id)},
-            {'$set': update_data}
-        )
-        if result.modified_count > 0:
-            logger.info(f"{trans('general_vat_rule_updated', default='Updated VAT rule with ID')}: {vat_rule_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_vat_rule_no_change', default='No changes made to VAT rule with ID')}: {vat_rule_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_vat_rule_update_error', default='Error updating VAT rule with ID')} {vat_rule_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
 def update_payment_location(db, location_id, update_data):
     """
     Update a payment location in the payment_locations collection.
@@ -2211,412 +1792,6 @@ def update_payment_location(db, location_id, update_data):
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
-def update_tax_deadline(db, deadline_id, update_data):
-    """
-    Update a tax deadline in the tax_deadlines collection.
-    
-    Args:
-        db: MongoDB database instance
-        deadline_id: The ID of the tax deadline to update
-        update_data: Dictionary containing fields to update
-    
-    Returns:
-        bool: True if updated, False if not found or no changes made
-    """
-    try:
-        result = db.tax_deadlines.update_one(
-            {'_id': ObjectId(deadline_id)},
-            {'$set': update_data}
-        )
-        if result.modified_count > 0:
-            logger.info(f"{trans('general_tax_deadline_updated', default='Updated tax deadline with ID')}: {deadline_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_tax_deadline_no_change', default='No changes made to tax deadline with ID')}: {deadline_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_tax_deadline_update_error', default='Error updating tax deadline with ID')} {deadline_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_shopping_item(db, item_id):
-    """
-    Delete a shopping item from the shopping_items collection.
-    
-    Args:
-        db: MongoDB database instance
-        item_id: The ID of the shopping item to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.shopping_items.delete_one({'_id': ObjectId(item_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_shopping_item_deleted', default='Deleted shopping item with ID')}: {item_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_shopping_item_not_found', default='Shopping item not found with ID')}: {item_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_shopping_item_delete_error', default='Error deleting shopping item with ID')} {item_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_record(db, record_id):
-    """
-    Delete a record from the records collection.
-    
-    Args:
-        db: MongoDB database instance
-        record_id: The ID of the record to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.records.delete_one({'_id': ObjectId(record_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_record_deleted', default='Deleted record with ID')}: {record_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_record_not_found', default='Record not found with ID')}: {record_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_record_delete_error', default='Error deleting record with ID')} {record_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_cashflow(db, cashflow_id):
-    """
-    Delete a cashflow record from the cashflows collection.
-    
-    Args:
-        db: MongoDB database instance
-        cashflow_id: The ID of the cashflow record to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.cashflows.delete_one({'_id': ObjectId(cashflow_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_cashflow_deleted', default='Deleted cashflow record with ID')}: {cashflow_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_cashflow_not_found', default='Cashflow record not found with ID')}: {cashflow_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_cashflow_delete_error', default='Error deleting cashflow record with ID')} {cashflow_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_ficore_credit_transaction(db, transaction_id):
-    """
-    Delete a ficore credit transaction from the ficore_credit_transactions collection.
-    
-    Args:
-        db: MongoDB database instance
-        transaction_id: The ID of the transaction to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.ficore_credit_transactions.delete_one({'_id': ObjectId(transaction_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('credits_transaction_deleted', default='Deleted ficore credit transaction with ID')}: {transaction_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('credits_transaction_not_found', default='Ficore credit transaction not found with ID')}: {transaction_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('credits_transaction_delete_error', default='Error deleting ficore credit transaction with ID')} {transaction_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_credit_request(db, request_id):
-    """
-    Delete a credit request from the credit_requests collection.
-    
-    Args:
-        db: MongoDB database instance
-        request_id: The ID of the credit request to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.credit_requests.delete_one({'_id': ObjectId(request_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('credits_request_deleted', default='Deleted credit request with ID')}: {request_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('credits_request_not_found', default='Credit request not found with ID')}: {request_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('credits_request_delete_error', default='Error deleting credit request with ID')} {request_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_audit_log(db, audit_id):
-    """
-    Delete an audit log from the audit_logs collection.
-    
-    Args:
-        db: MongoDB database instance
-        audit_id: The ID of the audit log to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.audit_logs.delete_one({'_id': ObjectId(audit_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_audit_log_deleted', default='Deleted audit log with ID')}: {audit_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_audit_log_not_found', default='Audit log not found with ID')}: {audit_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_audit_log_delete_error', default='Error deleting audit log with ID')} {audit_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_user(db, user_id):
-    """
-    Delete a user from the users collection.
-    
-    Args:
-        db: MongoDB database instance
-        user_id: The ID of the user to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.users.delete_one({'_id': user_id})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_user_deleted', default='Deleted user with ID')}: {user_id}", 
-                       extra={'session_id': 'no-session-id'})
-            get_user.cache_clear()
-            get_user_by_email.cache_clear()
-            return True
-        logger.info(f"{trans('general_user_not_found', default='User not found with ID')}: {user_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_user_delete_error', default='Error deleting user with ID')} {user_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_budget(db, budget_id):
-    """
-    Delete a budget record from the budgets collection.
-    
-    Args:
-        db: MongoDB database instance
-        budget_id: The ID of the budget record to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.budgets.delete_one({'_id': ObjectId(budget_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_budget_deleted', default='Deleted budget record with ID')}: {budget_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_budget_not_found', default='Budget record not found with ID')}: {budget_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_budget_delete_error', default='Error deleting budget record with ID')} {budget_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_bill(db, bill_id):
-    """
-    Delete a bill record from the bills collection.
-    
-    Args:
-        db: MongoDB database instance
-        bill_id: The ID of the bill record to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.bills.delete_one({'_id': ObjectId(bill_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_bill_deleted', default='Deleted bill record with ID')}: {bill_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_bill_not_found', default='Bill record not found with ID')}: {bill_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_bill_delete_error', default='Error deleting bill record with ID')} {bill_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_bill_reminder(db, reminder_id):
-    """
-    Delete a bill reminder from the bill_reminders collection.
-    
-    Args:
-        db: MongoDB database instance
-        reminder_id: The ID of the bill reminder to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.bill_reminders.delete_one({'_id': ObjectId(reminder_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_bill_reminder_deleted', default='Deleted bill reminder with ID')}: {reminder_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_bill_reminder_not_found', default='Bill reminder not found with ID')}: {reminder_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_bill_reminder_delete_error', default='Error deleting bill reminder with ID')} {reminder_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_tax_rate(db, tax_rate_id):
-    """
-    Delete a tax rate from the tax_rates collection.
-    
-    Args:
-        db: MongoDB database instance
-        tax_rate_id: The ID of the tax rate to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.tax_rates.delete_one({'_id': ObjectId(tax_rate_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_tax_rate_deleted', default='Deleted tax rate with ID')}: {tax_rate_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_tax_rate_not_found', default='Tax rate not found with ID')}: {tax_rate_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_tax_rate_delete_error', default='Error deleting tax rate with ID')} {tax_rate_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_vat_rule(db, vat_rule_id):
-    """
-    Delete a VAT rule from the vat_rules collection.
-    
-    Args:
-        db: MongoDB database instance
-        vat_rule_id: The ID of the VAT rule to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.vat_rules.delete_one({'_id': ObjectId(vat_rule_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_vat_rule_deleted', default='Deleted VAT rule with ID')}: {vat_rule_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_vat_rule_not_found', default='VAT rule not found with ID')}: {vat_rule_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_vat_rule_delete_error', default='Error deleting VAT rule with ID')} {vat_rule_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_payment_location(db, location_id):
-    """
-    Delete a payment location from the payment_locations collection.
-    
-    Args:
-        db: MongoDB database instance
-        location_id: The ID of the payment location to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.payment_locations.delete_one({'_id': ObjectId(location_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_payment_location_deleted', default='Deleted payment location with ID')}: {location_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_payment_location_not_found', default='Payment location not found with ID')}: {location_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_payment_location_delete_error', default='Error deleting payment location with ID')} {location_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_tax_reminder(db, reminder_id):
-    """
-    Delete a tax reminder from the tax_reminders collection.
-    
-    Args:
-        db: MongoDB database instance
-        reminder_id: The ID of the tax reminder to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.tax_reminders.delete_one({'_id': ObjectId(reminder_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_tax_reminder_deleted', default='Deleted tax reminder with ID')}: {reminder_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_tax_reminder_not_found', default='Tax reminder not found with ID')}: {reminder_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_tax_reminder_delete_error', default='Error deleting tax reminder with ID')} {reminder_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_tax_deadline(db, deadline_id):
-    """
-    Delete a tax deadline from the tax_deadlines collection.
-    
-    Args:
-        db: MongoDB database instance
-        deadline_id: The ID of the tax deadline to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.tax_deadlines.delete_one({'_id': ObjectId(deadline_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_tax_deadline_deleted', default='Deleted tax deadline with ID')}: {deadline_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_tax_deadline_not_found', default='Tax deadline not found with ID')}: {deadline_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_tax_deadline_delete_error', default='Error deleting tax deadline with ID')} {deadline_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
 def create_shopping_list(db, list_data):
     """
     Create a new shopping list in the shopping_lists collection.
@@ -2632,71 +1807,13 @@ def create_shopping_list(db, list_data):
         required_fields = ['name', 'session_id', 'budget', 'created_at', 'updated_at', 'total_spent', 'status']
         if not all(field in list_data for field in required_fields):
             raise ValueError(trans('general_missing_shopping_list_fields', default='Missing required shopping list fields'))
-        list_data['_id'] = str(uuid.uuid4())
         result = db.shopping_lists.insert_one(list_data)
-        logger.info(f"{trans('general_shopping_list_created', default='Created shopping list with ID')}: {list_data['_id']}", 
+        logger.info(f"{trans('general_shopping_list_created', default='Created shopping list with ID')}: {result.inserted_id}", 
                    extra={'session_id': list_data.get('session_id', 'no-session-id')})
-        return str(list_data['_id'])
+        return str(result.inserted_id)
     except Exception as e:
         logger.error(f"{trans('general_shopping_list_creation_error', default='Error creating shopping list')}: {str(e)}", 
                     exc_info=True, extra={'session_id': list_data.get('session_id', 'no-session-id')})
-        raise
-
-def update_shopping_list(db, list_id, update_data):
-    """
-    Update a shopping list in the shopping_lists collection.
-    
-    Args:
-        db: MongoDB database instance
-        list_id: The ID of the shopping list to update
-        update_data: Dictionary containing fields to update
-    
-    Returns:
-        bool: True if updated, False if not found or no changes made
-    """
-    try:
-        update_data['updated_at'] = datetime.utcnow()
-        result = db.shopping_lists.update_one(
-            {'_id': list_id},
-            {'$set': update_data}
-        )
-        if result.modified_count > 0:
-            logger.info(f"{trans('general_shopping_list_updated', default='Updated shopping list with ID')}: {list_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_shopping_list_no_change', default='No changes made to shopping list with ID')}: {list_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_shopping_list_update_error', default='Error updating shopping list with ID')} {list_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_shopping_list(db, list_id):
-    """
-    Delete a shopping list from the shopping_lists collection and related items.
-    
-    Args:
-        db: MongoDB database instance
-        list_id: The ID of the shopping list to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        # Delete associated shopping items
-        db.shopping_items.delete_many({'list_id': list_id})
-        result = db.shopping_lists.delete_one({'_id': list_id})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_shopping_list_deleted', default='Deleted shopping list with ID')}: {list_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_shopping_list_not_found', default='Shopping list not found with ID')}: {list_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_shopping_list_delete_error', default='Error deleting shopping list with ID')} {list_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
 def get_shopping_lists(db, filter_kwargs):
@@ -2714,6 +1831,36 @@ def get_shopping_lists(db, filter_kwargs):
         return list(db.shopping_lists.find(filter_kwargs).sort('updated_at', DESCENDING))
     except Exception as e:
         logger.error(f"{trans('general_shopping_lists_fetch_error', default='Error getting shopping lists')}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def update_shopping_list(db, list_id, update_data):
+    """
+    Update a shopping list in the shopping_lists collection.
+    
+    Args:
+        db: MongoDB database instance
+        list_id: The ID of the shopping list to update
+        update_data: Dictionary containing fields to update
+    
+    Returns:
+        bool: True if updated, False if not found or no changes made
+    """
+    try:
+        update_data['updated_at'] = datetime.utcnow()
+        result = db.shopping_lists.update_one(
+            {'_id': ObjectId(list_id)},
+            {'$set': update_data}
+        )
+        if result.modified_count > 0:
+            logger.info(f"{trans('general_shopping_list_updated', default='Updated shopping list with ID')}: {list_id}", 
+                       extra={'session_id': 'no-session-id'})
+            return True
+        logger.info(f"{trans('general_shopping_list_no_change', default='No changes made to shopping list with ID')}: {list_id}", 
+                   extra={'session_id': 'no-session-id'})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('general_shopping_list_update_error', default='Error updating shopping list with ID')} {list_id}: {str(e)}", 
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
@@ -2743,7 +1890,7 @@ def create_pending_deletion(db, deletion_data):
         deletion_data: Dictionary containing pending deletion information
     
     Returns:
-        str: ID of the created pending deletion
+        str: ID of the created pending deletion record
     """
     try:
         required_fields = ['list_id', 'created_at', 'expires_at']
@@ -2773,31 +1920,6 @@ def get_pending_deletions(db, filter_kwargs):
         return list(db.pending_deletions.find(filter_kwargs).sort('created_at', DESCENDING))
     except Exception as e:
         logger.error(f"{trans('general_pending_deletions_fetch_error', default='Error getting pending deletions')}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
-
-def delete_pending_deletion(db, deletion_id):
-    """
-    Delete a pending deletion from the pending_deletions collection.
-    
-    Args:
-        db: MongoDB database instance
-        deletion_id: The ID of the pending deletion to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.pending_deletions.delete_one({'_id': ObjectId(deletion_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_pending_deletion_deleted', default='Deleted pending deletion with ID')}: {deletion_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_pending_deletion_not_found', default='Pending deletion not found with ID')}: {deletion_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_pending_deletion_delete_error', default='Error deleting pending deletion with ID')} {deletion_id}: {str(e)}", 
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
@@ -2856,6 +1978,22 @@ def get_food_orders(db, filter_kwargs):
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
+def to_dict_food_order(record):
+    """Convert food order record to dictionary."""
+    if not record:
+        return {'name': None, 'total_cost': None}
+    return {
+        'id': str(record.get('_id', '')),
+        'user_id': record.get('user_id', ''),
+        'name': record.get('name', ''),
+        'vendor': record.get('vendor', ''),
+        'total_cost': record.get('total_cost', 0.0),
+        'created_at': record.get('created_at'),
+        'updated_at': record.get('updated_at'),
+        'shared_with': record.get('shared_with', []),
+        'items': record.get('items', [])
+    }
+
 def update_food_order(db, order_id, update_data):
     """
     Update a food order in the food_orders collection.
@@ -2886,6 +2024,172 @@ def update_food_order(db, order_id, update_data):
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
+def create_session(db, session_data):
+    """
+    Create a new session in the sessions collection.
+    
+    Args:
+        db: MongoDB database instance
+        session_data: Dictionary containing session information
+    
+    Returns:
+        str: ID of the created session
+    """
+    try:
+        required_fields = ['_id', 'data', 'expiration']
+        if not all(field in session_data for field in required_fields):
+            raise ValueError(trans('general_missing_session_fields', default='Missing required session fields'))
+        result = db.sessions.insert_one(session_data)
+        logger.info(f"{trans('general_session_created', default='Created session with ID')}: {result.inserted_id}", 
+                   extra={'session_id': session_data.get('_id', 'no-session-id')})
+        return str(result.inserted_id)
+    except Exception as e:
+        logger.error(f"{trans('general_session_creation_error', default='Error creating session')}: {str(e)}", 
+                    exc_info=True, extra={'session_id': session_data.get('_id', 'no-session-id')})
+        raise
+
+def get_session(db, session_id):
+    """
+    Retrieve a session by ID from the sessions collection.
+    
+    Args:
+        db: MongoDB database instance
+        session_id: The session ID to retrieve
+    
+    Returns:
+        dict: Session document or None if not found
+    """
+    try:
+        session_doc = db.sessions.find_one({'_id': session_id})
+        if session_doc:
+            return {
+                '_id': session_doc['_id'],
+                'data': session_doc['data'],
+                'expiration': session_doc['expiration']
+            }
+        return None
+    except Exception as e:
+        logger.error(f"{trans('general_session_fetch_error', default='Error getting session by ID')} {session_id}: {str(e)}", 
+                    exc_info=True, extra={'session_id': session_id})
+        raise
+
+def update_session(db, session_id, update_data):
+    """
+    Update a session in the sessions collection.
+    
+    Args:
+        db: MongoDB database instance
+        session_id: The ID of the session to update
+        update_data: Dictionary containing fields to update
+    
+    Returns:
+        bool: True if updated, False if not found or no changes made
+    """
+    try:
+        result = db.sessions.update_one(
+            {'_id': session_id},
+            {'$set': update_data}
+        )
+        if result.modified_count > 0:
+            logger.info(f"{trans('general_session_updated', default='Updated session with ID')}: {session_id}", 
+                       extra={'session_id': session_id})
+            return True
+        logger.info(f"{trans('general_session_no_change', default='No changes made to session with ID')}: {session_id}", 
+                   extra={'session_id': session_id})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('general_session_update_error', default='Error updating session with ID')} {session_id}: {str(e)}", 
+                    exc_info=True, extra={'session_id': session_id})
+        raise
+
+def to_dict_session(record):
+    """Convert session record to dictionary."""
+    if not record:
+        return {'_id': None, 'data': None}
+    return {
+        '_id': record.get('_id', ''),
+        'data': record.get('data', {}),
+        'expiration': record.get('expiration')
+    }
+
+def delete_pending_deletion(db, deletion_id):
+    """
+    Delete a pending deletion record from the pending_deletions collection.
+    
+    Args:
+        db: MongoDB database instance
+        deletion_id: The ID of the pending deletion to delete
+    
+    Returns:
+        bool: True if deleted, False if not found
+    """
+    try:
+        result = db.pending_deletions.delete_one({'_id': ObjectId(deletion_id)})
+        if result.deleted_count > 0:
+            logger.info(f"{trans('general_pending_deletion_deleted', default='Deleted pending deletion with ID')}: {deletion_id}", 
+                       extra={'session_id': 'no-session-id'})
+            return True
+        logger.info(f"{trans('general_pending_deletion_no_change', default='No pending deletion found with ID')}: {deletion_id}", 
+                   extra={'session_id': 'no-session-id'})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('general_pending_deletion_delete_error', default='Error deleting pending deletion with ID')} {deletion_id}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def delete_shopping_list(db, list_id):
+    """
+    Delete a shopping list and its associated items from the shopping_lists and shopping_items collections.
+    
+    Args:
+        db: MongoDB database instance
+        list_id: The ID of the shopping list to delete
+    
+    Returns:
+        bool: True if deleted, False if not found
+    """
+    try:
+        # Delete associated shopping items
+        db.shopping_items.delete_many({'list_id': list_id})
+        # Delete the shopping list
+        result = db.shopping_lists.delete_one({'_id': ObjectId(list_id)})
+        if result.deleted_count > 0:
+            logger.info(f"{trans('general_shopping_list_deleted', default='Deleted shopping list with ID')}: {list_id}", 
+                       extra={'session_id': 'no-session-id'})
+            return True
+        logger.info(f"{trans('general_shopping_list_no_change', default='No shopping list found with ID')}: {list_id}", 
+                   extra={'session_id': 'no-session-id'})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('general_shopping_list_delete_error', default='Error deleting shopping list with ID')} {list_id}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def delete_shopping_item(db, item_id):
+    """
+    Delete a shopping item from the shopping_items collection.
+    
+    Args:
+        db: MongoDB database instance
+        item_id: The ID of the shopping item to delete
+    
+    Returns:
+        bool: True if deleted, False if not found
+    """
+    try:
+        result = db.shopping_items.delete_one({'_id': ObjectId(item_id)})
+        if result.deleted_count > 0:
+            logger.info(f"{trans('general_shopping_item_deleted', default='Deleted shopping item with ID')}: {item_id}", 
+                       extra={'session_id': 'no-session-id'})
+            return True
+        logger.info(f"{trans('general_shopping_item_no_change', default='No shopping item found with ID')}: {item_id}", 
+                   extra={'session_id': 'no-session-id'})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('general_shopping_item_delete_error', default='Error deleting shopping item with ID')} {item_id}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
 def delete_food_order(db, order_id):
     """
     Delete a food order from the food_orders collection.
@@ -2903,7 +2207,7 @@ def delete_food_order(db, order_id):
             logger.info(f"{trans('general_food_order_deleted', default='Deleted food order with ID')}: {order_id}", 
                        extra={'session_id': 'no-session-id'})
             return True
-        logger.info(f"{trans('general_food_order_not_found', default='Food order not found with ID')}: {order_id}", 
+        logger.info(f"{trans('general_food_order_no_change', default='No food order found with ID')}: {order_id}", 
                    extra={'session_id': 'no-session-id'})
         return False
     except Exception as e:
@@ -2911,18 +2215,244 @@ def delete_food_order(db, order_id):
                     exc_info=True, extra={'session_id': 'no-session-id'})
         raise
 
-def to_dict_food_order(record):
-    """Convert food order record to dictionary."""
-    if not record:
-        return {'name': None, 'vendor': None}
-    return {
-        'id': str(record.get('_id', '')),
-        'user_id': record.get('user_id', ''),
-        'name': record.get('name', ''),
-        'vendor': record.get('vendor', ''),
-        'total_cost': record.get('total_cost', 0.0),
-        'created_at': record.get('created_at'),
-        'updated_at': record.get('updated_at'),
-        'shared_with': record.get('shared_with', []),
-        'items': record.get('items', [])
-    }
+def delete_record(db, record_id):
+    """
+    Delete a record from the records collection.
+    
+    Args:
+        db: MongoDB database instance
+        record_id: The ID of the record to delete
+    
+    Returns:
+        bool: True if deleted, False if not found
+    """
+    try:
+        result = db.records.delete_one({'_id': ObjectId(record_id)})
+        if result.deleted_count > 0:
+            logger.info(f"{trans('general_record_deleted', default='Deleted record with ID')}: {record_id}", 
+                       extra={'session_id': 'no-session-id'})
+            return True
+        logger.info(f"{trans('general_record_no_change', default='No record found with ID')}: {record_id}", 
+                   extra={'session_id': 'no-session-id'})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('general_record_delete_error', default='Error deleting record with ID')} {record_id}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def delete_cashflow(db, cashflow_id):
+    """
+    Delete a cashflow record from the cashflows collection.
+    
+    Args:
+        db: MongoDB database instance
+        cashflow_id: The ID of the cashflow record to delete
+    
+    Returns:
+        bool: True if deleted, False if not found
+    """
+    try:
+        result = db.cashflows.delete_one({'_id': ObjectId(cashflow_id)})
+        if result.deleted_count > 0:
+            logger.info(f"{trans('general_cashflow_deleted', default='Deleted cashflow record with ID')}: {cashflow_id}", 
+                       extra={'session_id': 'no-session-id'})
+            return True
+        logger.info(f"{trans('general_cashflow_no_change', default='No cashflow record found with ID')}: {cashflow_id}", 
+                   extra={'session_id': 'no-session-id'})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('general_cashflow_delete_error', default='Error deleting cashflow record with ID')} {cashflow_id}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def delete_ficore_credit_transaction(db, transaction_id):
+    """
+    Delete a ficore credit transaction from the ficore_credit_transactions collection.
+    
+    Args:
+        db: MongoDB database instance
+        transaction_id: The ID of the transaction to delete
+    
+    Returns:
+        bool: True if deleted, False if not found
+    """
+    try:
+        result = db.ficore_credit_transactions.delete_one({'_id': ObjectId(transaction_id)})
+        if result.deleted_count > 0:
+            logger.info(f"{trans('credits_transaction_deleted', default='Deleted ficore credit transaction with ID')}: {transaction_id}", 
+                       extra={'session_id': 'no-session-id'})
+            return True
+        logger.info(f"{trans('credits_transaction_no_change', default='No ficore credit transaction found with ID')}: {transaction_id}", 
+                   extra={'session_id': 'no-session-id'})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('credits_transaction_delete_error', default='Error deleting ficore credit transaction with ID')} {transaction_id}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def delete_budget(db, budget_id):
+    """
+    Delete a budget record from the budgets collection.
+    
+    Args:
+        db: MongoDB database instance
+        budget_id: The ID of the budget record to delete
+    
+    Returns:
+        bool: True if deleted, False if not found
+    """
+    try:
+        result = db.budgets.delete_one({'_id': ObjectId(budget_id)})
+        if result.deleted_count > 0:
+            logger.info(f"{trans('general_budget_deleted', default='Deleted budget record with ID')}: {budget_id}", 
+                       extra={'session_id': 'no-session-id'})
+            return True
+        logger.info(f"{trans('general_budget_no_change', default='No budget record found with ID')}: {budget_id}", 
+                   extra={'session_id': 'no-session-id'})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('general_budget_delete_error', default='Error deleting budget record with ID')} {budget_id}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def delete_bill(db, bill_id):
+    """
+    Delete a bill record from the bills collection.
+    
+    Args:
+        db: MongoDB database instance
+        bill_id: The ID of the bill record to delete
+    
+    Returns:
+        bool: True if deleted, False if not found
+    """
+    try:
+        result = db.bills.delete_one({'_id': ObjectId(bill_id)})
+        if result.deleted_count > 0:
+            logger.info(f"{trans('general_bill_deleted', default='Deleted bill record with ID')}: {bill_id}", 
+                       extra={'session_id': 'no-session-id'})
+            return True
+        logger.info(f"{trans('general_bill_no_change', default='No bill record found with ID')}: {bill_id}", 
+                   extra={'session_id': 'no-session-id'})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('general_bill_delete_error', default='Error deleting bill record with ID')} {bill_id}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def delete_bill_reminder(db, reminder_id):
+    """
+    Delete a bill reminder from the bill_reminders collection.
+    
+    Args:
+        db: MongoDB database instance
+        reminder_id: The ID of the bill reminder to delete
+    
+    Returns:
+        bool: True if deleted, False if not found
+    """
+    try:
+        result = db.bill_reminders.delete_one({'_id': ObjectId(reminder_id)})
+        if result.deleted_count > 0:
+            logger.info(f"{trans('general_bill_reminder_deleted', default='Deleted bill reminder with ID')}: {reminder_id}", 
+                       extra={'session_id': 'no-session-id'})
+            return True
+        logger.info(f"{trans('general_bill_reminder_no_change', default='No bill reminder found with ID')}: {reminder_id}", 
+                   extra={'session_id': 'no-session-id'})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('general_bill_reminder_delete_error', default='Error deleting bill reminder with ID')} {reminder_id}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def delete_payment_location(db, location_id):
+    """
+    Delete a payment location from the payment_locations collection.
+    
+    Args:
+        db: MongoDB database instance
+        location_id: The ID of the payment location to delete
+    
+    Returns:
+        bool: True if deleted, False if not found
+    """
+    try:
+        result = db.payment_locations.delete_one({'_id': ObjectId(location_id)})
+        if result.deleted_count > 0:
+            logger.info(f"{trans('general_payment_location_deleted', default='Deleted payment location with ID')}: {location_id}", 
+                       extra={'session_id': 'no-session-id'})
+            return True
+        logger.info(f"{trans('general_payment_location_no_change', default='No payment location found with ID')}: {location_id}", 
+                   extra={'session_id': 'no-session-id'})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('general_payment_location_delete_error', default='Error deleting payment location with ID')} {location_id}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def delete_user(db, user_id):
+    """
+    Delete a user and their associated data from all relevant collections.
+    
+    Args:
+        db: MongoDB database instance
+        user_id: The ID of the user to delete
+    
+    Returns:
+        bool: True if deleted, False if not found
+    """
+    try:
+        # Delete associated data from all collections
+        db.records.delete_many({'user_id': user_id})
+        db.cashflows.delete_many({'user_id': user_id})
+        db.ficore_credit_transactions.delete_many({'user_id': user_id})
+        db.credit_requests.delete_many({'user_id': user_id})
+        db.budgets.delete_many({'user_id': user_id})
+        db.bills.delete_many({'user_id': user_id})
+        db.bill_reminders.delete_many({'user_id': user_id})
+        db.shopping_items.delete_many({'user_id': user_id})
+        db.shopping_lists.delete_many({'user_id': user_id})
+        db.pending_deletions.delete_many({'user_id': user_id})
+        db.food_orders.delete_many({'user_id': user_id})
+        db.feedback.delete_many({'user_id': user_id})
+        
+        # Delete the user
+        result = db.users.delete_one({'_id': user_id})
+        if result.deleted_count > 0:
+            logger.info(f"{trans('general_user_deleted', default='Deleted user with ID')}: {user_id}", 
+                       extra={'session_id': 'no-session-id'})
+            get_user.cache_clear()
+            get_user_by_email.cache_clear()
+            return True
+        logger.info(f"{trans('general_user_no_change', default='No user found with ID')}: {user_id}", 
+                   extra={'session_id': 'no-session-id'})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('general_user_delete_error', default='Error deleting user with ID')} {user_id}: {str(e)}", 
+                    exc_info=True, extra={'session_id': 'no-session-id'})
+        raise
+
+def delete_session(db, session_id):
+    """
+    Delete a session from the sessions collection.
+    
+    Args:
+        db: MongoDB database instance
+        session_id: The ID of the session to delete
+    
+    Returns:
+        bool: True if deleted, False if not found
+    """
+    try:
+        result = db.sessions.delete_one({'_id': session_id})
+        if result.deleted_count > 0:
+            logger.info(f"{trans('general_session_deleted', default='Deleted session with ID')}: {session_id}", 
+                       extra={'session_id': session_id})
+            return True
+        logger.info(f"{trans('general_session_no_change', default='No session found with ID')}: {session_id}", 
+                   extra={'session_id': session_id})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('general_session_delete_error', default='Error deleting session with ID')} {session_id}: {str(e)}", 
+                    exc_info=True, extra={'session_id': session_id})
+        raise
