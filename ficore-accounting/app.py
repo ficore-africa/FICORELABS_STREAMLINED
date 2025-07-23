@@ -440,7 +440,7 @@ def create_app():
             except Exception as e:
                 logger.warning(f'Some indexes may already exist: {str(e)}')
             
-            admin_email = os.getenv('ADMIN_EMAIL', 'ficore@gmail.com')
+            admin_email = os.getenv('ADMIN_EMAIL', 'ficoreafrica@gmail.com')
             admin_password = os.getenv('ADMIN_PASSWORD')
             if not admin_password:
                 logger.error('ADMIN_PASSWORD environment variable is not set')
