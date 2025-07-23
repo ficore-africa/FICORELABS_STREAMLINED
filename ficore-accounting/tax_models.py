@@ -27,9 +27,9 @@ tax_collection_schemas = {
             }
         },
         'indexes': [
-            {'key': [('role', ASCENDING)]},
-            {'key': [('min_income', ASCENDING)]},
-            {'key': [('session_id', ASCENDING)]}
+            {'key': [('role', ASCENDING)], 'name': 'role_1', 'unique': False},
+            {'key': [('min_income', ASCENDING)], 'name': 'min_income_1', 'unique': False},
+            {'key': [('session_id', ASCENDING)], 'name': 'session_id_1', 'unique': False}
         ]
     },
     'vat_rules': {
@@ -46,8 +46,8 @@ tax_collection_schemas = {
             }
         },
         'indexes': [
-            {'key': [('category', ASCENDING)]},
-            {'key': [('session_id', ASCENDING)]}
+            {'key': [('category', ASCENDING)], 'name': 'category_1', 'unique': False},
+            {'key': [('session_id', ASCENDING)], 'name': 'session_id_1', 'unique': False}
         ]
     },
     'tax_version': {
@@ -63,7 +63,7 @@ tax_collection_schemas = {
             }
         },
         'indexes': [
-            {'key': [('version', ASCENDING)]}
+            {'key': [('version', ASCENDING)], 'name': 'version_1', 'unique': False}
         ]
     },
     'tax_reminders': {
@@ -81,9 +81,9 @@ tax_collection_schemas = {
             }
         },
         'indexes': [
-            {'key': [('user_id', ASCENDING)]},
-            {'key': [('reminder_date', ASCENDING)]},
-            {'key': [('session_id', ASCENDING)]}
+            {'key': [('user_id', ASCENDING)], 'name': 'user_id_1', 'unique': False},
+            {'key': [('reminder_date', ASCENDING)], 'name': 'reminder_date_1', 'unique': False},
+            {'key': [('session_id', ASCENDING)], 'name': 'session_id_1', 'unique': False}
         ]
     },
     'tax_deadlines': {
@@ -100,9 +100,9 @@ tax_collection_schemas = {
             }
         },
         'indexes': [
-            {'key': [('tax_type', ASCENDING)]},
-            {'key': [('deadline_date', ASCENDING)]},
-            {'key': [('session_id', ASCENDING)]}
+            {'key': [('tax_type', ASCENDING)], 'name': 'tax_type_1', 'unique': False},
+            {'key': [('deadline_date', ASCENDING)], 'name': 'deadline_date_1', 'unique': False},
+            {'key': [('session_id', ASCENDING)], 'name': 'session_id_1', 'unique': False}
         ]
     },
     'payment_locations': {
@@ -125,7 +125,7 @@ tax_collection_schemas = {
             }
         },
         'indexes': [
-            {'key': [('name', ASCENDING)]}
+            {'key': [('name', ASCENDING)], 'name': 'name_1', 'unique': False}
         ]
     }
 }
@@ -139,6 +139,7 @@ def initialize_tax_data(db, trans):
     # Create or update tax-related collections
     for collection_name, config in tax_collection_schemas.items():
         try:
+            # Create or modify collection with validator
             if collection_name not in collections:
                 db.create_collection(collection_name, validator=config.get('validator', {}))
                 logger.info(f"{trans('general_collection_created', default='Created collection')}: {collection_name}", 
@@ -148,13 +149,44 @@ def initialize_tax_data(db, trans):
                 logger.info(f"Updated validator for collection: {collection_name}", 
                             extra={'session_id': 'no-session-id'})
             
-            # Create indexes
+            # Manage indexes
+            existing_indexes = db[collection_name].index_information()
             for index in config.get('indexes', []):
-                db[collection_name].create_index(index['key'])
-                logger.info(f"Created index for {collection_name}: {index['key']}", 
+                index_name = index['name']
+                desired_key = index['key']
+                desired_unique = index.get('unique', False)
+
+                # Check if index exists and compare properties
+                if index_name in existing_indexes:
+                    existing_key = existing_indexes[index_name].get('key')
+                    existing_unique = existing_indexes[index_name].get('unique', False)
+                    
+                    # If the index matches the desired key and unique property, skip creation
+                    if existing_key == desired_key and existing_unique == desired_unique:
+                        logger.info(f"Index {index_name} already exists with correct properties for {collection_name}", 
+                                    extra={'session_id': 'no-session-id'})
+                        continue
+                    
+                    # Drop conflicting index
+                    db[collection_name].drop_index(index_name)
+                    logger.info(f"Dropped conflicting index {index_name} for {collection_name}", 
+                                extra={'session_id': 'no-session-id'})
+
+                # Create the index
+                db[collection_name].create_index(
+                    desired_key,
+                    name=index_name,
+                    unique=desired_unique
+                )
+                logger.info(f"Created index {index_name} for {collection_name}", 
                             extra={'session_id': 'no-session-id'})
-        except Exception as e:
+
+        except OperationFailure as e:
             logger.error(f"Failed to initialize collection {collection_name}: {str(e)}", 
+                        exc_info=True, extra={'session_id': 'no-session-id'})
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error initializing collection {collection_name}: {str(e)}", 
                         exc_info=True, extra={'session_id': 'no-session-id'})
             raise
 
