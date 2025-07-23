@@ -10,6 +10,7 @@ GENERAL_TRANSLATIONS = {
         'other': 'Other',
         'general_select': 'Select',
         'shopping_management': 'Shopping Management',
+        'general_collection_created': 'Collection Created',
         # General module
         'view_history': 'View History',
         'fontes': 'Fontes',
@@ -1846,6 +1847,7 @@ GENERAL_TRANSLATIONS = {
         'view_history': 'Duba Tarihi',
         'fontes': 'Fontes',
         'general_invalid_payment_method': 'Hanyar biya da aka zaɓa ba daidai ba ne',
+        'general_collection_created': 'An ƙirƙiri Tarin',
         'general_something_went_wrong': 'Kuskure ya faru',
         # General module
         'general_list_name': 'Sunan Jeri',
