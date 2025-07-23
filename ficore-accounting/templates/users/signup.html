@@ -88,6 +88,9 @@
                         </div>
                     {% endif %}
                 </div>
+                <div class="form-group mb-3 text-center">
+                    <p>{{ t('general_agree_to_terms', default='By signing up, you agree to our') | escape }} <a href="{{ url_for('general_bp.terms') | escape }}" aria-label="{{ t('general_terms', default='Terms of Service') | escape }}">{{ t('general_terms', default='Terms of Service') | escape }}</a>.</p>
+                </div>
                 <div class="text-center">
                     <button type="submit" class="btn btn-primary" aria-label="{{ t('general_create_account', default='Sign Up') | escape }}">{{ t('general_create_account', default='Sign Up') | escape }}</button>
                 </div>
