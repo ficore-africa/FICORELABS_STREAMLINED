@@ -3093,3 +3093,52 @@ a.text-decoration-none:hover .btn-outline-primary {
 .btn-close-white {
     filter: invert(100%) sepia(100%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%);
 }
+.daily-planner-tools {
+    background: linear-gradient(135deg, #fefefe, #f3f4f6);
+    padding: 20px;
+    border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+}
+
+.daily-planner-tools .section-title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #222;
+    margin-bottom: 16px;
+}
+
+.daily-planner-tools .quick-actions {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: space-between;
+}
+.daily-planner-tools .quick-action-card {
+    background-color: #fff;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    flex: 1 1 calc(50% - 10px);
+    max-width: calc(50% - 10px);
+    padding: 16px;
+    text-align: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+}
+
+.daily-planner-tools .quick-action-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.07);
+    background-color: #f9f9f9;
+}
+
+.daily-planner-tools .action-icon {
+    font-size: 2rem;
+    margin-bottom: 8px;
+    color: #4a90e2;
+}
+.daily-planner-tools .action-label {
+    font-weight: 500;
+    font-size: 1rem;
+    color: #333;
+}
