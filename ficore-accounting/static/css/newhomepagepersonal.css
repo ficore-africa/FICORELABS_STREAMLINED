@@ -42,19 +42,18 @@
 /* Balance Display Card */
 .personal-balance-display-card {
     color: #fff; /* White text for green background */
-    padding: 1.5rem;
+    padding: 1rem; /* Reduced from 1.5rem to 1rem */
     position: relative;
     overflow: hidden; /* For any background patterns if added */
     /* opay-green-bg - You need to define this in your global CSS */
-    /* Example placeholder: */
-    background-color: #00b050; /* A shade of green */
+    background-color: #ADD8E6; /* Changed to light blue */
 }
 
 .personal-balance-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.3rem; /* Reduced from 0.5rem */
 }
 
 .personal-balance-label {
@@ -75,7 +74,7 @@
 .personal-balance-amount-wrapper {
     display: flex;
     align-items: baseline;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem; /* Reduced from 1.5rem */
 }
 
 .personal-currency-symbol {
@@ -94,7 +93,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-top: 1rem;
+    padding-top: 0.8rem; /* Reduced from 1rem */
     border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
 
@@ -430,7 +429,7 @@
     }
 
     .personal-balance-amount-wrapper {
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem; /* Adjusted for smaller screens */
     }
 
     .personal-quick-action-item,
