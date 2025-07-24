@@ -136,9 +136,31 @@
     text-transform: uppercase;
     font-size: 0.9rem;
 }
-.dark-mode .language-toggle {
-    color: #ffffff;
+
+/* IMPORTANT: Dark mode adjustments for toggles and header */
+.dark-mode .fintech-top-header {
+    background-color: #212529; /* Dark background for header */
+    border-bottom-color: #343a40; /* Darker border */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
+
+.dark-mode .fintech-top-header .greeting-text,
+.dark-mode .fintech-top-header .brand-text {
+    color: #f8f9fa; /* Light text color in dark mode */
+}
+
+.dark-mode .language-toggle,
+.dark-mode .icon-btn#darkModeToggle,
+.dark-mode .fintech-top-header .icon-btn { /* Target all icon buttons in dark mode */
+    color: #ffffff; /* White color for icons and text in dark mode */
+}
+
+.dark-mode .fintech-top-header .icon-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2); /* Lighter hover effect in dark mode */
+    color: #ffffff; /* Keep color white on hover */
+}
+
+
 /* Dialogflow Messenger Custom Styling */
 df-messenger {
     --df-messenger-font-family: 'Poppins', sans-serif;
@@ -203,17 +225,6 @@ df-messenger {
 
 .icon-btn#darkModeToggle:hover {
     background-color: rgba(0, 0, 0, 0.1);
-}
-
-/* Dark Mode Adjustments */
-.dark-mode .language-toggle,
-.dark-mode .icon-btn#darkModeToggle {
-    color: #ffffff;
-}
-
-.dark-mode .icon-btn.language-toggle:hover,
-.dark-mode .icon-btn#darkModeToggle:hover {
-    background-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Ensure consistency with header-right layout */
