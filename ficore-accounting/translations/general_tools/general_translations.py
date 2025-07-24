@@ -7,6 +7,7 @@ GENERAL_TRANSLATIONS = {
         'general_register': 'Register',
         'general_back_to_dashboard': 'Back to Dashboard',
         'general_remember_me': 'Remember me',
+        'general_identifier_length': 'Identifier must be between 3 and 50 characters',
         # General module
         'general_login_identifier': 'Login Identifier',
         'general_identifier_required': 'Identifier is required',
@@ -1891,6 +1892,7 @@ GENERAL_TRANSLATIONS = {
         'general_select_role_description': 'Zaɓi nau’in asusunka: <strong>Na Kai</strong> don gudanar da kuɗin mutum (kasafin kuɗi, biliyoyin, ƙimar kuɗi); <strong>Dan Kasuwa</strong> ga masu kasuwanci da ke bin diddigin kaya, masu bashi, da masu ba da bashi; <strong>Wakili</strong> ga wakilai masu izini (yana buƙatar ID na Wakili mai inganci); ko <strong>Mai Gudanarwa</strong> ga masu gudanar da tsarin (iyakantaccen shiga).',
         'general_agent_id': 'ID na Wakili',
         'general_already_have_account': 'Kana da asusu? Shiga',
+        'general_identifier_length': 'Alama dole ne ta kasance tsakanin haruffa 3 zuwa 50',
         'general_show_password': 'Nuna Kalmar Sirri',
         'general_hide_password': 'Ɓoye Kalmar Sirri',
         'general_terms': 'Sharuɗɗan Hidima',
