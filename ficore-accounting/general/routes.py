@@ -99,6 +99,23 @@ def terms():
             title=trans('general_terms', lang=lang)
         ), 404
 
+@general_bp.route('/personal-finance-tips')
+def personal_finance_tips():
+    """Public personal finance tips page."""
+    lang = session.get('lang', 'en')
+    try:
+        return render_template(
+            'general/personal_finance_tips.html',
+            title=trans('personal_finance_tips_title', lang=lang, default='Personal Finance Tips')
+        )
+    except TemplateNotFound as e:
+        current_app.logger.error(f'Template not found: {str(e)}', exc_info=True)
+        return render_template(
+            'personal/GENERAL/error.html',
+            error=str(e),
+            title=trans('personal_finance_tips_title', lang=lang, default='Personal Finance Tips')
+        ), 404
+
 @general_bp.route('/feedback', methods=['GET', 'POST'])
 @utils.limiter.limit('10 per minute')
 def feedback():
