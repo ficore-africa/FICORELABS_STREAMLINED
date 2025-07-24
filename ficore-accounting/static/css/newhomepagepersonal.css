@@ -1,0 +1,471 @@
+/* General Layout */
+.personal-page-container {
+    padding: 1rem;
+    max-width: 960px; /* Or adjust to your desired max width */
+    margin: 0 auto; /* Center the container */
+}
+
+/* No-JS Warning */
+.personal-no-js-warning {
+    background-color: #ffe0b2; /* Light orange for warning */
+    color: #e65100; /* Dark orange text */
+    padding: 1rem;
+    border-radius: 0.5rem;
+    text-align: center;
+    margin-bottom: 1rem;
+    font-weight: 500;
+}
+
+/* Section Cards */
+.personal-section-card {
+    background-color: var(--bs-body-bg, #fff); /* Use Bootstrap body background by default */
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* Softer shadow */
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+}
+
+.personal-section-title {
+    font-size: 1.25rem; /* H3 size */
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--bs-heading-color, #333);
+}
+
+.personal-section-header-flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+/* Balance Display Card */
+.personal-balance-display-card {
+    color: #fff; /* White text for green background */
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden; /* For any background patterns if added */
+    /* opay-green-bg - You need to define this in your global CSS */
+    /* Example placeholder: */
+    background-color: #00b050; /* A shade of green */
+}
+
+.personal-balance-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.personal-balance-label {
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+.personal-toggle-visibility-btn {
+    color: #fff;
+    opacity: 0.8;
+}
+
+.personal-toggle-visibility-btn:hover {
+    color: #fff;
+    opacity: 1;
+}
+
+.personal-balance-amount-wrapper {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 1.5rem;
+}
+
+.personal-currency-symbol {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-right: 0.25rem;
+}
+
+.personal-amount-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.personal-balance-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.personal-add-credits-btn {
+    display: inline-flex;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.personal-add-credits-btn:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+    color: #fff;
+}
+
+.personal-add-credits-btn i {
+    margin-right: 0.5rem;
+}
+
+.personal-view-history-link {
+    color: #fff;
+    font-size: 0.9rem;
+    text-decoration: none;
+    opacity: 0.9;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.personal-view-history-link:hover {
+    opacity: 1;
+    color: #fff;
+}
+
+/* Recent Activity */
+.personal-activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.personal-recent-activity-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--bs-border-color-translucent, #eee); /* Light separator */
+}
+
+.personal-recent-activity-item:last-child {
+    border-bottom: none;
+}
+
+.personal-activity-icon-wrapper {
+    width: 2.5rem;
+    height: 2.5rem;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
+    background-color: var(--bs-light, #f8f9fa); /* Light background for icons */
+    margin-right: 1rem;
+    font-size: 1.2rem;
+}
+
+.personal-activity-content {
+    flex-grow: 1;
+}
+
+.personal-activity-content-placeholder {
+    flex-grow: 1;
+}
+
+.personal-activity-description {
+    font-size: 0.95rem;
+    color: var(--bs-body-color, #212529);
+}
+
+.personal-activity-time {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color, #6c757d);
+}
+
+.personal-recent-activity-item.personal-no-activity {
+    justify-content: center;
+    text-align: center;
+    padding: 2rem 0;
+    border-bottom: none;
+    color: var(--bs-secondary-color);
+}
+
+/* Quick Actions Grid */
+.personal-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1rem;
+}
+
+.personal-quick-action-item {
+    background-color: var(--bs-light, #f8f9fa); /* Light background for action items */
+    border-radius: 0.75rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    color: var(--bs-body-color, #212529);
+    transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out;
+    cursor: pointer;
+}
+
+.personal-quick-action-item:hover {
+    transform: translateY(-3px);
+    background-color: var(--bs-gray-200, #e9ecef);
+    color: var(--bs-body-color); /* Ensure text color remains readable */
+}
+
+.personal-action-icon-wrapper {
+    width: 3.5rem;
+    height: 3.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
+    background-color: var(--bs-primary-rgb, rgba(13, 110, 253, 0.1)); /* Light primary color background */
+    margin-bottom: 0.75rem;
+    font-size: 1.8rem;
+    color: var(--bs-primary, #0d6efd);
+}
+
+.personal-action-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+/* Financial Snapshots */
+.personal-snapshots-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+}
+
+.personal-snapshot-item {
+    background-color: var(--bs-light, #f8f9fa);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.personal-snapshot-item i {
+    font-size: 1.8rem;
+    min-width: 1.8rem; /* Ensure icon doesn't shrink */
+}
+
+.personal-snapshot-content {
+    flex-grow: 1;
+}
+
+.personal-snapshot-label {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color, #6c757d);
+    margin-bottom: 0.25rem;
+}
+
+.personal-snapshot-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--bs-body-color, #212529);
+    display: flex;
+    align-items: baseline;
+}
+
+.personal-snapshot-value .personal-currency-symbol {
+    font-size: 0.9em; /* Smaller symbol relative to value */
+    margin-right: 0.15rem;
+}
+
+.personal-snapshot-value .personal-amount-value {
+    font-size: 1em; /* Inherit from parent */
+}
+
+.personal-status-indicator {
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.2em 0.5em;
+    border-radius: 0.25rem;
+    display: inline-block;
+    margin-top: 0.5rem;
+}
+
+/* Specific status indicators - adjust colors as needed */
+#budgetStatusLabel {
+    background-color: var(--bs-success-bg-subtle, #d1e7dd);
+    color: var(--bs-success-text-emphasis, #0f5132);
+}
+
+#billsStatusLabel {
+    background-color: var(--bs-warning-bg-subtle, #fff3cd);
+    color: var(--bs-warning-text-emphasis, #664d03);
+}
+
+#shoppingStatusLabel {
+    background-color: var(--bs-info-bg-subtle, #cff4fc);
+    color: var(--bs-info-text-emphasis, #055160);
+}
+
+#foodOrderStatusLabel {
+    background-color: var(--bs-primary-bg-subtle, #cfe2ff);
+    color: var(--bs-primary-text-emphasis, #0a58ca);
+}
+
+
+/* Explore Features / Services Grid */
+.personal-services-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1rem;
+}
+
+.personal-service-grid-item {
+    background-color: var(--bs-light, #f8f9fa);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    color: var(--bs-body-color, #212529);
+    transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out;
+    cursor: pointer;
+}
+
+.personal-service-grid-item:hover {
+    transform: translateY(-3px);
+    background-color: var(--bs-gray-200, #e9ecef);
+    color: var(--bs-body-color);
+}
+
+.personal-service-icon-wrapper {
+    width: 3.5rem;
+    height: 3.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
+    background-color: var(--bs-secondary-rgb, rgba(108, 117, 125, 0.1)); /* Light secondary color */
+    margin-bottom: 0.75rem;
+    font-size: 1.8rem;
+    color: var(--bs-secondary, #6c757d);
+}
+
+.personal-service-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+
+/* Promotion Card */
+.personal-promotion-card {
+    background-color: var(--bs-primary, #0d6efd); /* Example primary color for promotion */
+    color: #fff;
+    padding: 1.5rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.personal-promotion-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+.personal-promotion-image {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    /* Consider object-fit: cover; if images might have inconsistent aspect ratios */
+}
+
+.personal-promotion-text h4 {
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+    color: #fff;
+}
+
+.personal-promotion-text p {
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    opacity: 0.9;
+}
+
+.personal-promotion-card .btn-outline-light {
+    border-color: #fff;
+    color: #fff;
+}
+
+.personal-promotion-card .btn-outline-light:hover {
+    background-color: #fff;
+    color: var(--bs-primary, #0d6efd);
+}
+
+/* Animation for click */
+.animate-click {
+    animation: personal-click-effect 0.2s ease-out;
+}
+
+@keyframes personal-click-effect {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(0.97);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Responsive adjustments */
+@media (min-width: 576px) { /* Small devices (landscape phones, 576px and up) */
+    .personal-page-container {
+        padding: 1.5rem;
+    }
+
+    .personal-balance-amount-wrapper {
+        margin-bottom: 2rem;
+    }
+
+    .personal-quick-action-item,
+    .personal-service-grid-item {
+        padding: 1.5rem;
+    }
+
+    .personal-promotion-content {
+        flex-direction: row;
+        gap: 1.5rem;
+        text-align: left;
+    }
+
+    .personal-promotion-image {
+        max-width: 120px; /* Adjust as needed */
+        margin-bottom: 0;
+    }
+
+    .personal-promotion-text {
+        flex-grow: 1;
+    }
+}
+
+@media (min-width: 768px) { /* Medium devices (tablets, 768px and up) */
+    .personal-page-container {
+        padding: 2rem;
+    }
+
+    .personal-actions-grid,
+    .personal-snapshots-summary-grid,
+    .personal-services-grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); /* More columns for wider screens */
+    }
+
+    .personal-section-card {
+        padding: 1.5rem;
+    }
+}
