@@ -732,15 +732,15 @@ def setup_wizard():
             for field, errors in form.errors.items():
                 for error in errors:
                     flash(f"{field}: {error}", 'danger')
-        return render_template('users/setup.html', form=form, title=trans('general_business_setup', lang=session.get('lang', 'en')))
+        return render_template('users/business_setup.html', form=form, title=trans('general_business_setup', lang=session.get('lang', 'en')))
     except errors.PyMongoError as e:
         logger.error(f"MongoDB error during business setup for {user_id}: {str(e)}")
         flash(trans('general_database_error', default='An error occurred while accessing the database. Please try again later.'), 'danger')
-        return render_template('users/setup.html', form=form, title=trans('general_business_setup', lang=session.get('lang', 'en'))), 500
+        return render_template('users/business_setup.html', form=form, title=trans('general_business_setup', lang=session.get('lang', 'en'))), 500
     except Exception as e:
         logger.error(f"Unexpected error during business setup for {user_id}: {str(e)}")
         flash(trans('general_error', default='An error occurred. Please try again.'), 'danger')
-        return render_template('users/setup.html', form=form, title=trans('general_business_setup', lang=session.get('lang', 'en'))), 500
+        return render_template('perosnal/GENERAL/error.html', form=form, title=trans('general_business_setup', lang=session.get('lang', 'en'))), 500
 
 @users_bp.route('/personal_setup_wizard', methods=['GET', 'POST'])
 @login_required
