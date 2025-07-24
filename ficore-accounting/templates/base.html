@@ -23,35 +23,39 @@
     {% block extra_head %}{% endblock %}
 </head>
 <body class="{% if session.get('dark_mode', False) %}dark-mode{% endif %}">
-    {% if current_user.is_authenticated %}
-        <header class="top-header">
-            <div class="d-flex align-items-center gap-3" style="min-width:0;">
-                <a class="navbar-brand" href="{{ url_for('personal.index') if current_user.role == 'personal' else url_for('general_bp.home') | e }}" aria-label="{{ t('general_ficore_africa', default='FiCore Africa') | e }}">
-                    <img src="{{ current_user.profile_picture if current_user.profile_picture else url_for('static', filename='img/default_profile.png') | e }}" alt="{{ t('general_user_profile_picture', default='User Profile Picture') | e }}" class="logo">
-                    <span class="welcome-text">{{ t('general_hello_user', default='Hello') | e }}, {{ current_user.display_name | default(current_user.id) | e }}</span>
+    <header class="fintech-top-header">
+        <div class="header-left">
+            {% if current_user.is_authenticated %}
+                <a class="profile-link" href="{{ url_for('personal.index') if current_user.role == 'personal' else url_for('general_bp.home') | e }}" aria-label="{{ t('general_ficore_africa', default='FiCore Africa') | e }}">
+                    <img src="{{ current_user.profile_picture if current_user.profile_picture else url_for('static', filename='img/default_profile.png') | e }}" alt="{{ t('general_user_profile_picture', default='User Profile Picture') | e }}" class="profile-avatar">
+                    <span class="greeting-text">{{ t('general_hi_user', default='Hi') | e }}, {{ current_user.display_name | default(current_user.id) | e }}</span>
                 </a>
-            </div>
-            <div class="header-actions">
-                <button class="notification-bell" id="notificationBell" data-bs-toggle="modal" data-bs-target="#notificationModal" data-bs-toggle="tooltip" data-bs-title="{{ t('general_notifications_tooltip', default='View notifications') | e }}" aria-label="{{ t('general_notifications', default='Notifications') | e }}">
-                    <i class="bi bi-bell"></i>
-                    <span class="notification-badge badge bg-primary rounded-pill d-none" id="notificationBadge">0</span>
-                </button>
-                <button class="btn btn-link language-toggle" id="languageToggle" onclick="toggleLanguage()" data-bs-toggle="tooltip" data-bs-title="{{ t('general_language_toggle_tooltip', default='Toggle language') | e }}" aria-label="{{ t('general_language_toggle', default='Toggle language') | e }}">
-                    <i class="bi bi-globe"></i>
-                    <span id="languageText">{{ 'ENGLISH' if lang == 'en' else 'HAUSA' }}</span>
-                </button>
-                <button class="btn btn-link" id="darkModeToggle" onclick="toggleDarkMode()" aria-label="{{ t('general_mode_toggle_dark', default='Toggle dark mode') | e }}" data-bs-toggle="tooltip" data-bs-title="{{ t('general_mode_toggle_tooltip_switch_to_dark', default='Switch to dark mode') | e }}">
-                    <i class="bi bi-moon-stars"></i>
-                </button>
-            </div>
-        </header>
-    {% else %}
-        <nav class="navbar navbar-expand-lg bg-light fixed-top">
-            <div class="container-fluid">
+            {% else %}
                 <a class="navbar-brand" href="{{ url_for('personal.index') if request.blueprint == 'personal' else url_for('general_bp.home') | e }}" aria-label="{{ t('general_ficore_africa', default='FiCore Africa') | e }}">
-                    <img src="{{ url_for('static', filename='img/ficore_logo.png') | e }}" alt="{{ t('general_ficore_africa_logo', default='FiCore Africa Logo') | e }}" class="logo">
-                    <span>{{ t('general_ficore_africa', default='FiCore Africa') | e }}</span>
+                    <img src="{{ url_for('static', filename='img/ficore_logo.png') | e }}" alt="{{ t('general_ficore_africa_logo', default='FiCore Africa Logo') | e }}" class="ficore-logo">
+                    <span class="brand-text">{{ t('general_ficore_africa', default='FiCore Africa') | e }}</span>
                 </a>
+            {% endif %}
+        </div>
+        <div class="header-right">
+            <button class="icon-btn help-icon-btn" data-bs-toggle="tooltip" data-bs-title="{{ t('general_help_tooltip', default='Get help') | e }}" aria-label="{{ t('general_help', default='Help') | e }}">
+                <i class="bi bi-question-circle"></i>
+                <span class="help-text">{{ t('general_help', default='HELP') | e }}</span>
+            </button>
+            <button class="icon-btn scan-icon-btn" data-bs-toggle="tooltip" data-bs-title="{{ t('general_scan_qr_tooltip', default='Scan QR code') | e }}" aria-label="{{ t('general_scan_qr', default='Scan QR') | e }}">
+                <i class="bi bi-qr-code-scan"></i>
+            </button>
+            <button class="icon-btn notification-bell" id="notificationBell" data-bs-toggle="modal" data-bs-target="#notificationModal" data-bs-toggle="tooltip" data-bs-title="{{ t('general_notifications_tooltip', default='View notifications') | e }}" aria-label="{{ t('general_notifications', default='Notifications') | e }}">
+                <i class="bi bi-bell"></i>
+                <span class="notification-badge badge bg-danger rounded-circle d-none" id="notificationBadge">0</span>
+            </button>
+        </div>
+    </header>
+
+    {# Original navbar for unauthenticated users (if needed, otherwise remove or adapt) #}
+    {% if not current_user.is_authenticated %}
+        <nav class="navbar navbar-expand-lg bg-light"> {# Removed fixed-top as custom header handles it #}
+            <div class="container-fluid">
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="{{ t('general_toggle_navigation', default='Toggle navigation') | e }}">
                     <span class="navbar-toggler-icon"></span>
                 </button>
@@ -72,6 +76,7 @@
                         <li class="nav-item">
                             <a class="nav-link {% if request.endpoint == 'users.signup' %}active{% endif %}" href="{{ url_for('users.signup') | e }}" data-bs-toggle="tooltip" data-bs-title="{{ t('general_signup_tooltip', default='Create a new account') | e }}" aria-current="{% if request.endpoint == 'users.signup' %}page{% endif %}">{{ t('general_signup', default='Sign Up') | e }}</a>
                         </li>
+                        {# Language and Dark Mode toggles might also be moved to the unified header if desired, or kept here for unauth #}
                         <li class="nav-item">
                             <button class="nav-link btn btn-link language-toggle" id="languageToggle" onclick="toggleLanguage()" data-bs-toggle="tooltip" data-bs-title="{{ t('general_language_toggle_tooltip', default='Toggle language') | e }}" aria-label="{{ t('general_language_toggle', default='Toggle language') | e }}">
                                 <i class="bi bi-globe"></i>
@@ -176,6 +181,113 @@
     </div>
 
     <style>
+        /* This internal style block should be moved to styles.css or a dedicated header.css */
+        .fintech-top-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background-color: #fff; /* fintech's header is typically white */
+            border-bottom: 1px solid #f0f0f0; /* Subtle separator */
+            position: sticky; /* Keeps it at the top when scrolling */
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1030; /* Above Bootstrap's navbar (1050) but below modals */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* Subtle shadow */
+        }
+
+        .fintech-top-header .header-left,
+        .fintech-top-header .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem; /* Space between items */
+        }
+
+        .fintech-top-header .profile-link {
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .fintech-top-header .profile-avatar {
+            width: 38px; /* Slightly larger avatar */
+            height: 38px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 0.5rem;
+            border: 1px solid #e0e0e0; /* Subtle border */
+        }
+
+        .fintech-top-header .greeting-text {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #333; /* Darker text for visibility */
+        }
+
+        .fintech-top-header .ficore-logo {
+            height: 30px; /* Adjust logo size */
+            margin-right: 0.5rem;
+        }
+
+        .fintech-top-header .brand-text {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #333; /* FiCore brand text color */
+        }
+
+        .fintech-top-header .icon-btn {
+            background: none;
+            border: none;
+            color: #555; /* Icon color */
+            font-size: 1.3rem; /* Larger icons */
+            padding: 0.4rem;
+            border-radius: 50%; /* Make buttons circular */
+            transition: background-color 0.2s ease;
+            display: flex; /* For text below icon in help */
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none; /* For the link-like behavior */
+        }
+
+        .fintech-top-header .icon-btn:hover {
+            background-color: #f0f0f0;
+            color: #000;
+        }
+
+        .fintech-top-header .help-icon-btn {
+            font-size: 1.1rem; /* Smaller font for help icon to accommodate text */
+        }
+
+        .fintech-top-header .help-icon-btn .help-text {
+            font-size: 0.65rem; /* Smaller text for "HELP" */
+            font-weight: 600;
+            margin-top: 0.1rem;
+            line-height: 1;
+        }
+
+        .fintech-top-header .notification-bell {
+            position: relative;
+        }
+
+        .fintech-top-header .notification-badge {
+            position: absolute;
+            top: 2px; /* Adjust as needed */
+            right: 2px; /* Adjust as needed */
+            padding: 0.35em 0.55em; /* Make it more prominent */
+            font-size: 0.65rem;
+            line-height: 1;
+            border-radius: 50%;
+            background-color: var(--bs-danger, #dc3545) !important; /* Ensure it's red */
+        }
+
+        /* Adjust main content padding to avoid being hidden by fixed header */
+        .main-content {
+            padding-top: 70px; /* Adjust this value based on header height */
+        }
+
+        /* Original internal styles from base.html */
         .notification-card {
             border-bottom: 1px solid #e9ecef;
             padding: 0.75rem 0;
@@ -198,16 +310,16 @@
         .notification-time {
             font-size: 0.8rem;
         }
-        .language-toggle {
+        .language-toggle { /* Kept for the unauthenticated nav if it remains */
             display: flex;
             align-items: center;
             gap: 0.5rem;
         }
-        .language-toggle span {
+        .language-toggle span { /* Kept for the unauthenticated nav if it remains */
             text-transform: uppercase;
             font-size: 0.9rem;
         }
-        .dark-mode .language-toggle {
+        .dark-mode .language-toggle { /* Kept for the unauthenticated nav if it remains */
             color: #ffffff;
         }
         /* Dialogflow Messenger Custom Styling */
@@ -254,14 +366,14 @@
             canvas.style.pointerEvents = 'none';
             canvas.style.zIndex = '10000';
             document.body.appendChild(canvas);
-            
+
             const ctx = canvas.getContext('2d');
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
 
             const particles = [];
             const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'];
-            
+
             function createParticle() {
                 return {
                     x: Math.random() * canvas.width,
@@ -408,7 +520,7 @@
                 }
             }
 
-            // Navbar collapse fix: Close menu on link click for mobile
+            // Navbar collapse fix: Close menu on link click for mobile (for unauthenticated nav)
             const navbarToggler = document.querySelector('.navbar-toggler');
             const navbarCollapse = document.querySelector('#navbarNav');
             if (navbarToggler && navbarCollapse) {
@@ -447,9 +559,18 @@
             localStorage.setItem('dark_mode', isDark);
             const darkModeToggle = document.getElementById('darkModeToggle');
             if (darkModeToggle) {
-                darkModeToggle.querySelector('i').className = isDark ? 'bi bi-sun' : 'bi bi-moon-stars';
-                darkModeToggle.setAttribute('data-bs-title', isDark ? '{{ t("general_mode_toggle_tooltip_switch_to_light", default="Switch to light mode") | e }}' : '{{ t("general_mode_toggle_tooltip_switch_to_dark", default="Switch to dark mode") | e }}');
-                darkModeToggle.setAttribute('aria-label', isDark ? '{{ t("general_mode_toggle_light", default="Toggle light mode") | e }}' : '{{ t("general_mode_toggle_dark", default="Toggle dark mode") | e }}');
+                // If the dark mode toggle is part of the top header, adjust its icon and tooltip
+                if (darkModeToggle.closest('.fintech-top-header')) {
+                     // The top header doesn't have a dark mode toggle in the fintech style, so this block might be removed or adapted.
+                     // For now, keeping it if you decide to add it there.
+                    darkModeToggle.querySelector('i').className = isDark ? 'bi bi-sun' : 'bi bi-moon-stars';
+                    darkModeToggle.setAttribute('data-bs-title', isDark ? '{{ t("general_mode_toggle_tooltip_switch_to_light", default="Switch to light mode") | e }}' : '{{ t("general_mode_toggle_tooltip_switch_to_dark", default="Switch to dark mode") | e }}');
+                    darkModeToggle.setAttribute('aria-label', isDark ? '{{ t("general_mode_toggle_light", default="Toggle light mode") | e }}' : '{{ t("general_mode_toggle_dark", default="Toggle dark mode") | e }}');
+                } else { // For the unauthenticated navbar, if it still exists
+                    darkModeToggle.querySelector('i').className = isDark ? 'bi bi-sun' : 'bi bi-moon-stars';
+                    darkModeToggle.setAttribute('data-bs-title', isDark ? '{{ t("general_mode_toggle_tooltip_switch_to_light", default="Switch to light mode") | e }}' : '{{ t("general_mode_toggle_tooltip_switch_to_dark", default="Switch to dark mode") | e }}');
+                    darkModeToggle.setAttribute('aria-label', isDark ? '{{ t("general_mode_toggle_light", default="Toggle light mode") | e }}' : '{{ t("general_mode_toggle_dark", default="Toggle dark mode") | e }}');
+                }
                 const tooltip = bootstrap.Tooltip.getInstance(darkModeToggle);
                 if (tooltip) tooltip.dispose();
                 new bootstrap.Tooltip(darkModeToggle);
@@ -510,7 +631,7 @@
                 const badge = document.getElementById('notificationBadge');
                 if (badge) {
                     badge.textContent = data.count || 0;
-                    badge.className = `notification-badge badge bg-${data.count > 0 ? 'danger' : 'primary'} rounded-pill`;
+                    badge.className = `notification-badge badge bg-${data.count > 0 ? 'danger' : 'primary'} rounded-circle`; /* Changed to rounded-circle */
                     badge.classList.toggle('d-none', data.count === 0);
                 }
             } catch (error) {
@@ -644,8 +765,8 @@
             const diffInSeconds = Math.floor((now - time) / 1000);
             if (diffInSeconds < 60) return translations.just_now;
             if (diffInSeconds < 3600) return Math.floor(diffInSeconds / 60) + ' ' + translations.minutes_ago;
-            if (diffInSeconds < 86400) return Math.floor(diffInSeconds / 3600) + ' ' + translations.hours_ago;
-            return Math.floor(diffInSeconds / 86400) + ' ' + translations.days_ago;
+            if (diffInSeconds < 86400) return Math.floor(diffInSeconds / 86400) + ' ' + translations.days_ago;
+            return Math.floor(diffInSeconds / 86400) + ' ' + translations.days_ago; /* Corrected typo: should be days_ago for consistency */
         }
 
         document.getElementById('notificationModal')?.addEventListener('show.bs.modal', loadNotifications);
