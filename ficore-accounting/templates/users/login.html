@@ -8,15 +8,17 @@
             <h1 class="text-2xl font-bold text-center text-gray-800 dark:text-gray-100 mb-4">{{ t('general_login', default='Sign In') | e }}</h1>
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
-                    <div class="alert bg-{{ 'red-100 text-red-700 border-red-500' if messages[0][1] in ['danger', 'error'] else 'green-100 text-green-700 border-green-500' }} border-l-4 rounded p-3 mb-4">
-                        {{ messages[0][0] | e }}
-                        {% if messages[0][1] in ['danger', 'error'] %}
-                            <p class="mt-1 text-sm">{{ t('general_check_credentials', default='Please check your username or email and password.') | e }}</p>
-                        {% endif %}
-                    </div>
+                    {% for category, message in messages %}
+                        <div class="alert bg-{{ 'red-100 text-red-700 border-red-500' if category in ['danger', 'error'] else 'green-100 text-green-700 border-green-500' }} border-l-4 rounded p-3 mb-4">
+                            {{ message | e }}
+                            {% if category in ['danger', 'error'] %}
+                                <p class="mt-1 text-sm">{{ t('general_check_credentials', default='Please check your username or email and password.') | e }}</p>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
                 {% endif %}
             {% endwith %}
-            <form method="POST" action="{{ url_for('users.login') }}" class="login-page__form">
+            <form method="POST" action="{{ url_for('users.login') }}" class="login-page__form" id="loginForm">
                 {{ form.hidden_tag() }}
                 <div class="form-group">
                     {{ form.username(class="form-control", placeholder=" ", required=True, id="username", autofocus=True, **{'aria-label': t('general_login_identifier', default='Username or Email')}) | safe }}
@@ -51,6 +53,7 @@
                 <button type="submit" class="btn btn-primary" id="signInButton">{{ t('general_login', default='Sign In') | e }}</button>
                 <div class="links-container mt-3">
                     <a href="{{ url_for('users.signup') }}" class="text-indigo-600 hover:text-indigo-500">{{ t('general_signup', default='Create an Account') | e }}</a>
+                    <a href="{{ url_for('users.forgot_password') }}" class="text-indigo-600 hover:text-indigo-500 ml-4">{{ t('general_forgot_password', default='Forgot Password?') | e }}</a>
                 </div>
             </form>
         </div>
@@ -62,6 +65,7 @@
     const eyeIcon = togglePassword.querySelector('.eye-icon');
     const eyeSlashIcon = togglePassword.querySelector('.eye-slash-icon');
     const signInButton = document.getElementById('signInButton');
+    const loginForm = document.getElementById('loginForm');
 
     togglePassword.addEventListener('click', () => {
         const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
@@ -74,11 +78,16 @@
         if (!signInButton.classList.contains('loading')) {
             signInButton.classList.add('loading');
             signInButton.disabled = true;
-            setTimeout(() => {
-                signInButton.classList.remove('loading');
-                signInButton.disabled = false;
-            }, 2000); // Simulate loading for 2 seconds
+            loginForm.submit(); // Ensure form submission
         }
+    });
+
+    // Reset button state on form submission failure
+    loginForm.addEventListener('submit', () => {
+        setTimeout(() => {
+            signInButton.classList.remove('loading');
+            signInButton.disabled = false;
+        }, 2000); // Reset after 2 seconds if submission fails
     });
 </script>
 {% endblock %}
