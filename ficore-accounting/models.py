@@ -62,7 +62,7 @@ def initialize_app_data(app):
             logger.info(f"MongoDB database: {db_instance.name}", extra={'session_id': 'no-session-id'})
             collections = db_instance.list_collection_names()
             
-            # Define collection schemas
+            # Define collection schemas (unchanged)
             collection_schemas = {
                 'users': {
                     'validator': {
@@ -501,6 +501,14 @@ def initialize_app_data(app):
                         extra={'session_id': 'no-session-id'}
                     )
 
+                    # Delete related ficore_credit_transactions
+                    transactions_result = db_instance.ficore_credit_transactions.delete_many({'type': 'create_shopping_list'})
+                    deleted_transactions_count = transactions_result.deleted_count
+                    logger.info(
+                        f"{trans('general_ficore_transactions_deleted', default='Deleted {count} ficore credit transactions')}: {deleted_transactions_count}",
+                        extra={'session_id': 'no-session-id'}
+                    )
+
                     # Log the reset action in audit_logs
                     audit_data = {
                         'admin_id': 'system',
@@ -509,6 +517,7 @@ def initialize_app_data(app):
                             'deleted_lists': deleted_lists_count,
                             'deleted_items': deleted_items_count,
                             'deleted_pending': deleted_pending_count,
+                            'deleted_transactions': deleted_transactions_count,
                             'timestamp': datetime.utcnow().isoformat()
                         },
                         'timestamp': datetime.utcnow()
@@ -582,6 +591,10 @@ def initialize_app_data(app):
                                                    extra={'session_id': 'no-session-id'})
                                         index_exists = True
                                     else:
+                                        if existing_index_name == '_id_':
+                                            logger.info(f"Skipping drop of _id index on {collection_name}", 
+                                                       extra={'session_id': 'no-session-id'})
+                                            continue
                                         try:
                                             db_instance[collection_name].drop_index(existing_index_name)
                                             logger.info(f"Dropped conflicting index {existing_index_name} on {collection_name}", 
@@ -600,10 +613,14 @@ def initialize_app_data(app):
                                     if 'IndexKeySpecsConflict' in str(e):
                                         logger.info(f"Attempting to resolve index conflict for {collection_name}: {index_name}", 
                                                    extra={'session_id': 'no-session-id'})
-                                        db_instance[collection_name].drop_index(index_name)
-                                        db_instance[collection_name].create_index(keys, name=index_name, **options)
-                                        logger.info(f"Recreated index on {collection_name}: {keys} with options {options}", 
-                                                   extra={'session_id': 'no-session-id'})
+                                        if index_name != '_id_':
+                                            db_instance[collection_name].drop_index(index_name)
+                                            db_instance[collection_name].create_index(keys, name=index_name, **options)
+                                            logger.info(f"Recreated index on {collection_name}: {keys} with options {options}", 
+                                                       extra={'session_id': 'no-session-id'})
+                                        else:
+                                            logger.info(f"Skipping recreation of _id index on {collection_name}", 
+                                                       extra={'session_id': 'no-session-id'})
                                     else:
                                         logger.error(f"Failed to create index on {collection_name}: {str(e)}", 
                                                     exc_info=True, extra={'session_id': 'no-session-id'})
@@ -622,6 +639,10 @@ def initialize_app_data(app):
                                                extra={'session_id': 'no-session-id'})
                                     index_exists = True
                                 else:
+                                    if existing_index_name == '_id_':
+                                        logger.info(f"Skipping drop of _id index on {collection_name}", 
+                                                   extra={'session_id': 'no-session-id'})
+                                        continue
                                     try:
                                         db_instance[collection_name].drop_index(existing_index_name)
                                         logger.info(f"Dropped conflicting index {existing_index_name} on {collection_name}", 
@@ -640,10 +661,14 @@ def initialize_app_data(app):
                                 if 'IndexKeySpecsConflict' in str(e):
                                     logger.info(f"Attempting to resolve index conflict for {collection_name}: {index_name}", 
                                                extra={'session_id': 'no-session-id'})
-                                    db_instance[collection_name].drop_index(index_name)
-                                    db_instance[collection_name].create_index(keys, name=index_name, **options)
-                                    logger.info(f"Recreated index on {collection_name}: {keys} with options {options}", 
-                                               extra={'session_id': 'no-session-id'})
+                                    if index_name != '_id_':
+                                        db_instance[collection_name].drop_index(index_name)
+                                        db_instance[collection_name].create_index(keys, name=index_name, **options)
+                                        logger.info(f"Recreated index on {collection_name}: {keys} with options {options}", 
+                                                   extra={'session_id': 'no-session-id'})
+                                    else:
+                                        logger.info(f"Skipping recreation of _id index on {collection_name}", 
+                                                   extra={'session_id': 'no-session-id'})
                                 else:
                                     logger.error(f"Failed to create index on {collection_name}: {str(e)}", 
                                                 exc_info=True, extra={'session_id': 'no-session-id'})
