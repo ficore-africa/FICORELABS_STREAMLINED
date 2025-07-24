@@ -319,6 +319,7 @@ def get_explore_tools_redirect(user_role):
 def login():
     if current_user.is_authenticated:
         try:
+            logger.debug(f"Authenticated user {current_user.id} redirected from login")
             return redirect(get_post_login_redirect(current_user.role))
         except Exception as e:
             logger.error(f"Error redirecting authenticated user: {str(e)}")
@@ -330,86 +331,97 @@ def login():
         logger.debug(f"Created new session_id: {session['session_id']}")
 
     form = LoginForm()
-    if form.validate_on_submit():
-        try:
-            identifier = form.username.data.strip().lower()
-            logger.info(f"Login attempt for identifier: {identifier}, session_id: {session['session_id']}")
-            
-            db = utils.get_mongo_db()
-            if '@' in identifier:
-                user = db.users.find_one({'email': {'$regex': f'^{identifier}$', '$options': 'i'}})
-            else:
-                user = db.users.find_one({'_id': {'$regex': f'^{identifier}$', '$options': 'i'}})
-            
-            if not user:
-                flash(trans('general_identifier_not_found', default='Username or Email not found. Please check your signup details.'), 'danger')
-                logger.warning(f"Login attempt for non-existent identifier: {identifier}")
-                return render_template('users/login.html', form=form, title=trans('general_login', lang=session.get('lang', 'en'))), 401
+    if request.method == 'POST':
+        logger.debug(f"Received POST request for login, form data: {request.form}")
+        if form.validate_on_submit():
+            try:
+                identifier = form.username.data.strip().lower()
+                logger.info(f"Login attempt for identifier: {identifier}, session_id: {session['session_id']}")
+                
+                db = utils.get_mongo_db()
+                if '@' in identifier:
+                    user = db.users.find_one({'email': {'$regex': f'^{identifier}$', '$options': 'i'}})
+                else:
+                    user = db.users.find_one({'_id': {'$regex': f'^{identifier}$', '$options': 'i'}})
+                
+                if not user:
+                    logger.warning(f"Login attempt failed: Identifier {identifier} not found")
+                    flash(trans('general_identifier_not_found', default='Username or Email not found. Please check your signup details.'), 'danger')
+                    return render_template('users/login.html', form=form, title=trans('general_login', lang=session.get('lang', 'en'))), 401
 
-            username = user['_id']
-            if not check_password_hash(user['password'], form.password.data):
-                logger.warning(f"Failed login attempt for username: {username} (invalid password)")
-                flash(trans('general_invalid_password', default='Incorrect password'), 'danger')
-                return render_template('users/login.html', form=form, title=trans('general_login', lang=session.get('lang', 'en'))), 401
+                username = user['_id']
+                if not check_password_hash(user['password'], form.password.data):
+                    logger.warning(f"Login attempt failed for username: {username} (invalid password)")
+                    flash(trans('general_invalid_password', default='Incorrect password'), 'danger')
+                    return render_template('users/login.html', form=form, title=trans('general_login', lang=session.get('lang', 'en'))), 401
 
-            logger.info(f"User found: {username}, proceeding with login")
-            if os.environ.get('ENABLE_2FA', 'false').lower() == 'true':
-                otp = ''.join(str(random.randint(0, 9)) for _ in range(6))
-                try:
-                    db.users.update_one(
-                        {'_id': username},
-                        {'$set': {'otp': otp, 'otp_expiry': datetime.utcnow() + timedelta(minutes=5)}}
-                    )
-                    mail = utils.get_mail(current_app)
-                    lang = user.get('language', session.get('lang', 'en'))
-                    translation_key = 'general_otp_body_ha' if lang == 'ha' else 'general_otp_body'
-                    msg = EmailMessage(
-                        subject=trans('general_otp_subject', default='Your One-Time Password', lang=lang),
-                        body=trans(translation_key, default='Your OTP is {otp}. It expires in 5 minutes.', lang=lang, otp=otp),
-                        to=[user['email']]
-                    )
-                    msg.send()
-                    session['pending_user_id'] = username
-                    logger.info(f"OTP sent to {user['email']} for username: {username}")
-                    return redirect(url_for('users.verify_2fa'))
-                except Exception as e:
-                    logger.warning(f"Email delivery or formatting failed for OTP for {username}: {str(e)}. Allowing login without 2FA for testing.")
-                    from app import User
-                    user_obj = User(user['_id'], user['email'], user.get('display_name'), user.get('role', 'personal'))
-                    login_user(user_obj, remember=form.remember.data)
-                    session['lang'] = user.get('language', 'en')
-                    session.pop('is_anonymous', None)
-                    session['is_anonymous'] = False
-                    log_audit_action('login_without_2fa', {'user_id': username, 'reason': 'email_failure_test_mode'})
-                    logger.info(f"User {username} logged in without 2FA due to email failure (test mode). Session: {dict(session)}")
-                    if not user.get('setup_complete', False):
-                        setup_route = get_setup_wizard_route(user.get('role', 'personal'))
-                        return redirect(url_for(setup_route))
-                    return redirect(get_post_login_redirect(user.get('role', 'personal')))
-            from app import User
-            user_obj = User(user['_id'], user['email'], user.get('display_name'), user.get('role', 'personal'))
-            login_user(user_obj, remember=form.remember.data)
-            session['lang'] = user.get('language', 'en')
-            session.pop('is_anonymous', None)
-            session['is_anonymous'] = False
-            log_audit_action('login', {'user_id': username})
-            logger.info(f"User {username} logged in successfully. Session: {dict(session)}")
-            if not user.get('setup_complete', False):
-                setup_route = get_setup_wizard_route(user.get('role', 'personal'))
-                return redirect(url_for(setup_route))
-            return redirect(get_post_login_redirect(user.get('role', 'personal')))
-        except errors.PyMongoError as e:
-            logger.error(f"MongoDB error during login for {identifier}: {str(e)}")
-            flash(trans('general_database_error', default='An error occurred while accessing the database. Please try again later.'), 'danger')
-            return render_template('users/login.html', form=form, title=trans('general_login', lang=session.get('lang', 'en'))), 500
-        except Exception as e:
-            logger.error(f"Unexpected error during login for {identifier}: {str(e)}")
-            flash(trans('general_error', default='An error occurred. Please try again.'), 'danger')
-            return render_template('users/login.html', form=form, title=trans('general_login', lang=session.get('lang', 'en'))), 500
+                logger.info(f"User found: {username}, proceeding with login")
+                if os.environ.get('ENABLE_2FA', 'false').lower() == 'true':
+                    otp = ''.join(str(random.randint(0, 9)) for _ in range(6))
+                    try:
+                        db.users.update_one(
+                            {'_id': username},
+                            {'$set': {'otp': otp, 'otp_expiry': datetime.utcnow() + timedelta(minutes=5)}}
+                        )
+                        mail = utils.get_mail(current_app)
+                        lang = user.get('language', session.get('lang', 'en'))
+                        translation_key = 'general_otp_body_ha' if lang == 'ha' else 'general_otp_body'
+                        msg = EmailMessage(
+                            subject=trans('general_otp_subject', default='Your One-Time Password', lang=lang),
+                            body=trans(translation_key, default='Your OTP is {otp}. It expires in 5 minutes.', lang=lang, otp=otp),
+                            to=[user['email']]
+                        )
+                        msg.send()
+                        session['pending_user_id'] = username
+                        logger.info(f"OTP sent to {user['email']} for username: {username}")
+                        return redirect(url_for('users.verify_2fa'))
+                    except Exception as e:
+                        logger.warning(f"Email delivery or formatting failed for OTP for {username}: {str(e)}. Allowing login without 2FA for testing.")
+                        from app import User
+                        user_obj = User(user['_id'], user['email'], user.get('display_name'), user.get('role', 'personal'))
+                        login_user(user_obj, remember=form.remember.data)
+                        session['lang'] = user.get('language', 'en')
+                        session.pop('is_anonymous', None)
+                        session['is_anonymous'] = False
+                        log_audit_action('login_without_2fa', {'user_id': username, 'reason': 'email_failure_test_mode'})
+                        logger.info(f"User {username} logged in without 2FA due to email failure (test mode). Session: {dict(session)}")
+                        if not user.get('setup_complete', False):
+                            setup_route = get_setup_wizard_route(user.get('role', 'personal'))
+                            return redirect(url_for(setup_route))
+                        return redirect(get_post_login_redirect(user.get('role', 'personal')))
+                from app import User
+                user_obj = User(user['_id'], user['email'], user.get('display_name'), user.get('role', 'personal'))
+                login_result = login_user(user_obj, remember=form.remember.data)
+                logger.debug(f"login_user result for {username}: {login_result}")
+                if not login_result:
+                    logger.error(f"login_user failed for {username} without raising an exception")
+                    flash(trans('general_login_failed', default='Login failed. Please try again.'), 'danger')
+                    return render_template('users/login.html', form=form, title=trans('general_login', lang=session.get('lang', 'en'))), 401
+                
+                session['lang'] = user.get('language', 'en')
+                session.pop('is_anonymous', None)
+                session['is_anonymous'] = False
+                log_audit_action('login', {'user_id': username})
+                logger.info(f"User {username} logged in successfully. Session: {dict(session)}")
+                if not user.get('setup_complete', False):
+                    setup_route = get_setup_wizard_route(user.get('role', 'personal'))
+                    return redirect(url_for(setup_route))
+                return redirect(get_post_login_redirect(user.get('role', 'personal')))
+            except errors.PyMongoError as e:
+                logger.error(f"MongoDB error during login for {identifier}: {str(e)}")
+                flash(trans('general_database_error', default='An error occurred while accessing the database. Please try again later.'), 'danger')
+                return render_template('users/login.html', form=form, title=trans('general_login', lang=session.get('lang', 'en'))), 500
+            except Exception as e:
+                logger.error(f"Unexpected error during login for {identifier}: {str(e)}")
+                flash(trans('general_error', default='An error occurred. Please try again.'), 'danger')
+                return render_template('users/login.html', form=form, title=trans('general_login', lang=session.get('lang', 'en'))), 500
+        else:
+            logger.debug(f"Form validation failed: {form.errors}")
+            for field, errors in form.errors.items():
+                for error in errors:
+                    flash(f"{field}: {error}", 'danger')
     else:
-        for field, errors in form.errors.items():
-            for error in errors:
-                flash(f"{field}: {error}", 'danger')
+        logger.debug(f"Rendering login page for GET request, session_id: {session.get('session_id')}")
     return render_template('users/login.html', form=form, title=trans('general_login', lang=session.get('lang', 'en')))
 
 @users_bp.route('/verify_2fa', methods=['GET', 'POST'])
