@@ -176,6 +176,18 @@ class ShoppingItemForm(FlaskForm):
             NumberRange(min=0, max=1000000, message=trans('shopping_price_range', default='Price must be between 0 and 1 million'))
         ]
     )
+    unit = SelectField(
+        trans('shopping_unit', default='Unit'),
+        choices=[
+            ('piece', trans('shopping_unit_piece', default='Piece')),
+            ('carton', trans('shopping_unit_carton', default='Carton')),
+            ('kg', trans('shopping_unit_kg', default='Kilogram')),
+            ('liter', trans('shopping_unit_liter', default='Liter')),
+            ('pack', trans('shopping_unit_pack', default='Pack')),
+            ('other', trans('shopping_unit_other', default='Other'))
+        ],
+        validators=[DataRequired(message=trans('shopping_unit_required', default='Unit is required'))]
+    )
     store = StringField(
         trans('shopping_store', default='Store'),
         validators=[DataRequired(message=trans('shopping_store_required', default='Store is required'))]
@@ -215,6 +227,7 @@ class ShoppingItemForm(FlaskForm):
         self.name.label.text = trans('shopping_item_name', lang) or 'Item Name'
         self.quantity.label.text = trans('shopping_quantity', lang) or 'Quantity'
         self.price.label.text = trans('shopping_price', lang) or 'Price'
+        self.unit.label.text = trans('shopping_unit', lang) or 'Unit'
         self.store.label.text = trans('shopping_store', lang) or 'Store'
         self.category.label.text = trans('shopping_category', lang) or 'Category'
         self.status.label.text = trans('shopping_status', lang) or 'Status'
@@ -355,6 +368,7 @@ def main():
                     'name': item_form.name.data,
                     'quantity': item_form.quantity.data,
                     'price': item_form.price.data,
+                    'unit': item_form.unit.data,
                     'category': item_form.category.data,
                     'status': item_form.status.data,
                     'store': item_form.store.data,
@@ -474,6 +488,148 @@ def main():
                     flash(trans('shopping_list_error', default='Error saving shopping list.'), 'danger')
                 return redirect(url_for('personal.shopping.main', tab='dashboard'))
 
+            elif action == 'save_list_changes':
+                list_id = request.form.get('list_id')
+                if not ObjectId.is_valid(list_id):
+                    flash(trans('shopping_invalid_list_id', default='Invalid list ID format.'), 'danger')
+                    return redirect(url_for('personal.shopping.main', tab='manage-list'))
+                shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), **filter_criteria})
+                if not shopping_list:
+                    flash(trans('shopping_list_not_found', default='Shopping list not found or you are not the owner.'), 'danger')
+                    return redirect(url_for('personal.shopping.main', tab='manage-list'))
+                new_name = request.form.get('list_name', shopping_list['name'])
+                new_budget_str = request.form.get('list_budget', str(shopping_list['budget']))
+                try:
+                    new_budget = float(clean_currency(new_budget_str))
+                    if new_budget < 0 or new_budget > 10000000000:
+                        raise ValueError
+                except ValueError:
+                    flash(trans('shopping_budget_invalid', default='Invalid budget value.'), 'danger')
+                    return redirect(url_for('personal.shopping.main', tab='manage-list'))
+                existing_items = list(db.shopping_items.find({'list_id': list_id}))
+                added = 0
+                edited = 0
+                deleted = 0
+                last_deleted = session.get('last_deleted_item', None)
+                if last_deleted:
+                    del session['last_deleted_item']
+                for item in existing_items:
+                    item_id = str(item['_id'])
+                    if f'delete_{item_id}' in request.form:
+                        db.shopping_items.delete_one({'_id': item['_id']})
+                        session['last_deleted_item'] = {
+                            'item': item,
+                            'deleted_at': datetime.utcnow().isoformat()
+                        }
+                        deleted += 1
+                    else:
+                        new_item_data = {
+                            'name': request.form.get(f'item_{item_id}_name', item['name']),
+                            'quantity': int(request.form.get(f'item_{item_id}_quantity', item['quantity'])),
+                            'price': float(clean_currency(request.form.get(f'item_{item_id}_price', str(item['price'])))),
+                            'unit': request.form.get(f'item_{item_id}_unit', item['unit']),
+                            'category': request.form.get(f'item_{item_id}_category', item['category']),
+                            'status': request.form.get(f'item_{item_id}_status', item['status']),
+                            'store': request.form.get(f'item_{item_id}_store', item['store']),
+                            'frequency': int(request.form.get(f'item_{item_id}_frequency', item['frequency'])),
+                        }
+                        if any(new_item_data[key] != item[key] for key in new_item_data):
+                            db.shopping_items.update_one(
+                                {'_id': item['_id']},
+                                {'$set': {**new_item_data, 'updated_at': datetime.utcnow()}}
+                            )
+                            edited += 1
+                for i in range(1, 6):  # 5 new item slots
+                    new_name = request.form.get(f'new_item_name_{i}', '').strip()
+                    if new_name:
+                        try:
+                            new_quantity = int(request.form.get(f'new_item_quantity_{i}', 1))
+                            new_price_str = request.form.get(f'new_item_price_{i}', '0')
+                            new_price = float(clean_currency(new_price_str))
+                            new_unit = request.form.get(f'new_item_unit_{i}', 'piece')
+                            new_category = request.form.get(f'new_item_category_{i}', 'other')
+                            new_status = request.form.get(f'new_item_status_{i}', 'to_buy')
+                            new_store = request.form.get(f'new_item_store_{i}', 'Unknown')
+                            new_frequency = int(request.form.get(f'new_item_frequency_{i}', 7))
+                            if new_quantity < 1 or new_quantity > 1000 or new_price < 0 or new_price > 1000000 or new_frequency < 1 or new_frequency > 365:
+                                raise ValueError('Invalid input range')
+                            new_item_data = {
+                                '_id': ObjectId(),
+                                'list_id': list_id,
+                                'user_id': str(current_user.id) if current_user.is_authenticated else None,
+                                'session_id': session['sid'],
+                                'name': new_name,
+                                'quantity': new_quantity,
+                                'price': new_price,
+                                'unit': new_unit,
+                                'category': new_category,
+                                'status': new_status,
+                                'store': new_store,
+                                'frequency': new_frequency,
+                                'created_at': datetime.utcnow(),
+                                'updated_at': datetime.utcnow()
+                            }
+                            db.shopping_items.insert_one(new_item_data)
+                            added += 1
+                        except ValueError as e:
+                            flash(trans('shopping_item_error', default='Error adding new item: ') + str(e), 'danger')
+                total_operations = added + edited + deleted
+                required_credits = total_operations * 0.1
+                if current_user.is_authenticated and not is_admin():
+                    if not check_ficore_credit_balance(required_amount=required_credits, user_id=current_user.id):
+                        logger.warning(f"Insufficient Ficore Credits for saving changes to list {list_id} by user {current_user.id}", 
+                                      extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
+                        flash(trans('shopping_insufficient_credits', default='Insufficient Ficore Credits to save changes. Please purchase more credits.'), 'danger')
+                        return redirect(url_for('agents_bp.manage_credits'))
+                db.shopping_lists.update_one(
+                    {'_id': ObjectId(list_id)},
+                    {'$set': {'name': new_name, 'budget': new_budget, 'updated_at': datetime.utcnow()}}
+                )
+                items = list(db.shopping_items.find({'list_id': list_id}))
+                total_spent = sum(item['price'] * item['quantity'] for item in items)
+                db.shopping_lists.update_one(
+                    {'_id': ObjectId(list_id)},
+                    {'$set': {'total_spent': total_spent}}
+                )
+                if current_user.is_authenticated and not is_admin():
+                    if not deduct_ficore_credits(db, current_user.id, required_credits, 'save_shopping_list_changes', list_id):
+                        flash(trans('shopping_credit_deduction_failed', default='Failed to deduct Ficore Credits for saving changes.'), 'danger')
+                    else:
+                        flash(trans('shopping_changes_saved', default='Changes saved successfully!'), 'success')
+                if total_spent > new_budget:
+                    over_by = total_spent - new_budget
+                    flash(trans('shopping_over_budget', default='Warning: Total spent exceeds budget by ') + format_currency(over_by) + '.', 'warning')
+                return redirect(url_for('personal.shopping.main', tab='manage-list'))
+
+            elif action == 'undo_last_delete':
+                last_deleted = session.get('last_deleted_item')
+                if last_deleted and ObjectId.is_valid(last_deleted['item']['_id']):
+                    try:
+                        deleted_at = datetime.fromisoformat(last_deleted['deleted_at'])
+                        if (datetime.utcnow() - deleted_at).total_seconds() > 120:  # 2-minute timeout
+                            del session['last_deleted_item']
+                            flash(trans('shopping_undo_expired', default='Undo period has expired.'), 'warning')
+                            return redirect(url_for('personal.shopping.main', tab='manage-list'))
+                    except (ValueError, TypeError):
+                        del session['last_deleted_item']
+                        flash(trans('shopping_no_undo', default='No recent deletion to undo.'), 'warning')
+                        return redirect(url_for('personal.shopping.main', tab='manage-list'))
+                    list_id = last_deleted['item']['list_id']
+                    shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), **filter_criteria})
+                    if shopping_list:
+                        db.shopping_items.insert_one(last_deleted['item'])
+                        db.shopping_lists.update_one(
+                            {'_id': ObjectId(list_id)},
+                            {'$inc': {'total_spent': last_deleted['item']['price'] * last_deleted['item']['quantity']}, '$set': {'updated_at': datetime.utcnow()}}
+                        )
+                        del session['last_deleted_item']
+                        flash(trans('shopping_item_restored', default='Last deleted item restored!'), 'success')
+                    else:
+                        flash(trans('shopping_list_not_found', default='Shopping list not found.'), 'danger')
+                else:
+                    flash(trans('shopping_no_undo', default='No recent deletion to undo.'), 'warning')
+                return redirect(url_for('personal.shopping.main', tab='manage-list'))
+
         lists = list(db.shopping_lists.find(filter_criteria).sort('created_at', -1).limit(10))
         lists_dict = {}
         for lst in lists:
@@ -494,6 +650,7 @@ def main():
                     'quantity': item.get('quantity', 1),
                     'price': format_currency(item.get('price', 0.0)),
                     'price_raw': float(item.get('price', 0.0)),
+                    'unit': item.get('unit', 'piece'),
                     'category': item.get('category', 'other'),
                     'status': item.get('status', 'to_buy'),
                     'store': item.get('store', 'Unknown'),
@@ -504,8 +661,6 @@ def main():
             if not latest_list or (lst.get('created_at') and (latest_list['created_at'] == 'N/A' or lst.get('created_at') > datetime.strptime(latest_list['created_at'], '%Y-%m-%d'))):
                 latest_list = list_data
                 items = list_data['items']
-                logger.debug(f"latest_list.items type: {type(list_data['items'])}, value: {list_data['items']}", 
-                             extra={'session_id': session.get('sid', 'no-session-id')})
                 categories = {
                     trans('shopping_category_fruits', default='Fruits'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'fruits'),
                     trans('shopping_category_vegetables', default='Vegetables'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'vegetables'),
@@ -643,7 +798,6 @@ def edit_list(list_id):
                              extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
                 flash(trans('shopping_list_error', default='Error updating shopping list.'), 'danger')
         
-        # Pre-fill form with existing list data
         edit_form.name.data = shopping_list.get('name')
         edit_form.budget.data = float(shopping_list.get('budget', 0.0))
         
@@ -669,6 +823,7 @@ def edit_list(list_id):
                     'quantity': item.get('quantity', 1),
                     'price': format_currency(item.get('price', 0.0)),
                     'price_raw': float(item.get('price', 0.0)),
+                    'unit': item.get('unit', 'piece'),
                     'category': item.get('category', 'other'),
                     'status': item.get('status', 'to_buy'),
                     'store': item.get('store', 'Unknown'),
@@ -738,6 +893,7 @@ def export_list_pdf(list_id):
                 'name': i.get('name'),
                 'quantity': i.get('quantity', 1),
                 'price': float(i.get('price', 0)),
+                'unit': i.get('unit', 'piece'),
                 'category': i.get('category', 'other'),
                 'status': i.get('status', 'to_buy'),
                 'store': i.get('store', 'Unknown'),
@@ -773,9 +929,10 @@ def export_list_pdf(list_id):
                     p.drawString(2 * inch, y * inch, trans('general_item_name', default='Item Name'))
                     p.drawString(3 * inch, y * inch, trans('general_quantity', default='Quantity'))
                     p.drawString(3.8 * inch, y * inch, trans('general_price', default='Price'))
-                    p.drawString(4.5 * inch, y * inch, trans('general_status', default='Status'))
-                    p.drawString(5.2 * inch, y * inch, trans('general_category', default='Category'))
-                    p.drawString(6 * inch, y * inch, trans('general_store', default='Store'))
+                    p.drawString(4.5 * inch, y * inch, trans('general_unit', default='Unit'))
+                    p.drawString(5.2 * inch, y * inch, trans('general_status', default='Status'))
+                    p.drawString(5.9 * inch, y * inch, trans('general_category', default='Category'))
+                    p.drawString(6.6 * inch, y * inch, trans('general_store', default='Store'))
                     return y - row_height
                 draw_ficore_pdf_header(p, current_user, y_start=max_y)
                 p.setFont("Helvetica", 12)
@@ -808,9 +965,10 @@ def export_list_pdf(list_id):
                     p.drawString(2 * inch, y * inch, item['name'][:20])
                     p.drawString(3 * inch, y * inch, str(item['quantity']))
                     p.drawString(3.8 * inch, y * inch, format_currency(item['price']))
-                    p.drawString(4.5 * inch, y * inch, trans(item['status'], default=item['status']))
-                    p.drawString(5.2 * inch, y * inch, trans(item['category'], default=item['category']))
-                    p.drawString(6 * inch, y * inch, item['store'][:15])
+                    p.drawString(4.5 * inch, y * inch, trans(item['unit'], default=item['unit']))
+                    p.drawString(5.2 * inch, y * inch, trans(item['status'], default=item['status']))
+                    p.drawString(5.9 * inch, y * inch, trans(item['category'], default=item['category']))
+                    p.drawString(6.6 * inch, y * inch, item['store'][:15])
                     y -= row_height
                     row_count += 1
                 if row_count + 3 <= rows_per_page:
