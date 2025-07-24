@@ -46,7 +46,7 @@
     position: relative;
     overflow: hidden; /* For any background patterns if added */
     /* opay-green-bg - You need to define this in your global CSS */
-    background-color: #ADD8E6; /* Changed to light blue */
+    background-color: #3CB7A1; /* Changed to Teal Sea */
 }
 
 .personal-balance-header {
