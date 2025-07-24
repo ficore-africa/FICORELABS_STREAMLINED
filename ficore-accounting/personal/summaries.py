@@ -100,18 +100,6 @@ def get_recent_activities(user_id=None, is_admin_user=False, db=None):
                 'amount': x.get('amount', 0),
                 'action': x.get('action', 'Unknown')
             }
-        },
-        'food_orders': {
-            'collection': 'FoodOrder',
-            'required_fields': ['created_at', 'name'],
-            'type': 'food_order',
-            'icon': 'bi-box-seam',
-            'description_key': 'recent_activity_food_order_created',
-            'default_description': 'Created food order: {name}',
-            'details': lambda x: {
-                'vendor': x.get('vendor', 'Unknown'),
-                'total_cost': parse_currency(x.get('total_cost', 0))
-            }
         }
     }
 
@@ -339,40 +327,6 @@ def shopping_summary():
             'error': trans('shopping_summary_error', default='Error fetching shopping summary', module='shopping')
         }), 500
 
-@summaries_bp.route('/food_order/summary')
-@login_required
-@requires_role(['personal', 'admin'])
-def food_order_summary():
-    """Fetch the summary of active food orders for the authenticated user."""
-    try:
-        db = get_mongo_db()
-        food_orders = db.FoodOrder.find({'user_id': str(current_user.id)}).sort('updated_at', -1)
-        total_spent = 0.0
-        active_orders = 0
-        for order in food_orders:
-            try:
-                total_cost = parse_currency(order.get('total_cost', 0))
-                total_spent += total_cost
-                active_orders += 1
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Invalid food order data for order {order.get('_id')}: {str(e)}", 
-                              extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                continue
-        
-        logger.info(f"Fetched food order summary for user {current_user.id}: spent={total_spent}, active_orders={active_orders}", 
-                    extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-        return jsonify({
-            'total_food_order_spent': float(total_spent),
-            'active_orders': active_orders
-        }), 200
-    except Exception as e:
-        logger.error(f"Error fetching food order summary for user {current_user.id}: {str(e)}", 
-                     extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-        return jsonify({
-            'total_food_order_spent': 0.0,
-            'active_orders': 0,
-            'error': trans('food_order_summary_error', default='Error fetching food order summary', module='food_order')
-        }), 500
 
 @summaries_bp.route('/ficore_balance')
 @login_required
