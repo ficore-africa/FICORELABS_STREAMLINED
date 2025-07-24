@@ -8,6 +8,9 @@ GENERAL_TRANSLATIONS = {
         'general_back_to_dashboard': 'Back to Dashboard',
         'general_remember_me': 'Remember me',
         'general_identifier_length': 'Identifier must be between 3 and 50 characters',
+        'general_help_tooltip': 'Click for help and support',
+        'general_scan_qr_tooltip': 'Scan QR code to add item',
+        'general_scan_qr': 'Scan QR',
         # General module
         'general_login_identifier': 'Login Identifier',
         'general_identifier_required': 'Identifier is required',
@@ -1895,6 +1898,9 @@ GENERAL_TRANSLATIONS = {
         'general_identifier_length': 'Alama dole ne ta kasance tsakanin haruffa 3 zuwa 50',
         'general_show_password': 'Nuna Kalmar Sirri',
         'general_hide_password': 'Ɓoye Kalmar Sirri',
+        'general_help_tooltip': 'Danna don taimako da tallafi',
+        'general_scan_qr_tooltip': 'Sikan lambar QR don ƙara abu',
+        'general_scan_qr': 'Sikan QR',
         'general_terms': 'Sharuɗɗan Hidima',
         # New translations to add
         'general_agree_to_terms': 'Ta hanyar yin rajista, ka yarda da',
