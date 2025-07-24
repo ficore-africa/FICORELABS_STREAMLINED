@@ -467,9 +467,7 @@ def initialize_app_data(app):
                             }
                         }
                     },
-                    'indexes': [
-                        {'key': [('_id', ASCENDING)], 'unique': True}
-                    ]
+                    'indexes': []                      
                 }
             }
             
@@ -1512,6 +1510,7 @@ def create_shopping_item(db, item_data):
         required_fields = ['user_id', 'list_id', 'name', 'quantity', 'price', 'category', 'status', 'created_at', 'updated_at']
         if not all(field in item_data for field in required_fields):
             raise ValueError(trans('general_missing_shopping_item_fields', default='Missing required shopping item fields'))
+        item_data['unit'] = item_data.get('unit', 'piece')
         result = db.shopping_items.insert_one(item_data)
         logger.info(f"{trans('general_shopping_item_created', default='Created shopping item with ID')}: {result.inserted_id}", 
                    extra={'session_id': item_data.get('session_id', 'no-session-id')})
