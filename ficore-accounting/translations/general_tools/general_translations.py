@@ -23,7 +23,7 @@ GENERAL_TRANSLATIONS = {
         'finance_tip_9': 'Borrow with a Plan',
         'finance_tip_9_desc': 'Not just because it’s available.',
         'finance_tip_10': 'Use Tools That Help You',
-        'finance_tip_10_desc': 'Even basic ones like Ficore.',
+        'finance_tip_10_desc': 'Have a habit of using tools like Ficore.',
         # General module
         'general_remaining': 'Remaining',
         'general_over_by': 'Over by',
