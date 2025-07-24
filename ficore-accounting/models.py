@@ -251,9 +251,10 @@ def initialize_app_data(app):
                     'validator': {
                         '$jsonSchema': {
                             'bsonType': 'object',
-                            'required': ['user_id', 'list_id', 'name', 'quantity', 'price', 'category', 'status', 'created_at', 'updated_at'],
+                            'required': ['list_id', 'name', 'quantity', 'price', 'category', 'status', 'created_at', 'updated_at'],
                             'properties': {
-                                'user_id': {'bsonType': 'string'},
+                                'user_id': {'bsonType': ['string', 'null']},
+                                'session_id': {'bsonType': 'string'},
                                 'list_id': {'bsonType': 'string'},
                                 'name': {'bsonType': 'string'},
                                 'quantity': {'bsonType': 'int', 'minimum': 1},
@@ -264,6 +265,7 @@ def initialize_app_data(app):
                                 'updated_at': {'bsonType': 'date'},
                                 'store': {'bsonType': ['string', 'null']},
                                 'frequency': {'bsonType': 'int', 'minimum': 1}
+                                'unit': {'bsonType': ['string', 'null']}
                             }
                         }
                     },
