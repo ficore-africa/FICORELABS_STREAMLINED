@@ -24,7 +24,7 @@
                 <span class="personal-amount-value" id="walletBalance" data-amount="0">0.00</span>
             </div>
             <div class="personal-balance-actions">
-                <a href="{{ url_for('credits.request', _external=True) | e }}" class="personal-add-credits-btn">
+                <a href="{{ url_for('credits.request_credits', _external=True) | e }}" class="personal-add-credits-btn">
                     <i class="bi bi-plus-circle"></i> {{ t('add_credits', default='Ƙara Kudi') }}
                 </a>
                 <a href="{{ url_for('credits.history', _external=True) | e }}" class="personal-view-history-link">
@@ -173,7 +173,7 @@ window.apiUrls = {
     manageFoodOrderItems: "/personal/food_order/manage_items/{order_id}",
     reorderFoodOrder: "/personal/food_order/reorder/{order_id}",
     getNearestVendor: "/personal/food_order/get_nearest_vendor",
-    requestFicoreCredits: "{{ url_for('credits.request', _external=True) | e }}" // Add this for the "Add Credits" button
+    requestFicoreCredits: "{{ url_for('credits.request_credits', _external=True) | e }}" // Add this for the "Add Credits" button
 };
 
 let amountsVisible = true;
