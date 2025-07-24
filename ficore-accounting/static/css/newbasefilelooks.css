@@ -1,10 +1,10 @@
-/* --- OPay-like Top Header Styling --- */
-.opay-top-header {
+/* --- fintech-like Top Header Styling --- */
+.fintech-top-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 0.75rem 1rem;
-    background-color: #fff; /* OPay's header is typically white */
+    background-color: #fff; /* fintech's header is typically white */
     border-bottom: 1px solid #f0f0f0; /* Subtle separator */
     position: sticky; /* Keeps it at the top when scrolling */
     top: 0;
@@ -14,21 +14,21 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* Subtle shadow */
 }
 
-.opay-top-header .header-left,
-.opay-top-header .header-right {
+.fintech-top-header .header-left,
+.fintech-top-header .header-right {
     display: flex;
     align-items: center;
     gap: 1rem; /* Space between items */
 }
 
-.opay-top-header .profile-link {
+.fintech-top-header .profile-link {
     display: flex;
     align-items: center;
     text-decoration: none;
     color: inherit;
 }
 
-.opay-top-header .profile-avatar {
+.fintech-top-header .profile-avatar {
     width: 38px; /* Slightly larger avatar */
     height: 38px;
     border-radius: 50%;
@@ -37,24 +37,24 @@
     border: 1px solid #e0e0e0; /* Subtle border */
 }
 
-.opay-top-header .greeting-text {
+.fintech-top-header .greeting-text {
     font-size: 1rem;
     font-weight: 600;
     color: #333; /* Darker text for visibility */
 }
 
-.opay-top-header .ficore-logo {
+.fintech-top-header .ficore-logo {
     height: 30px; /* Adjust logo size */
     margin-right: 0.5rem;
 }
 
-.opay-top-header .brand-text {
+.fintech-top-header .brand-text {
     font-size: 1.1rem;
     font-weight: 700;
     color: #333; /* FiCore brand text color */
 }
 
-.opay-top-header .icon-btn {
+.fintech-top-header .icon-btn {
     background: none;
     border: none;
     color: #555; /* Icon color */
@@ -68,27 +68,27 @@
     text-decoration: none; /* For the link-like behavior if not a button */
 }
 
-.opay-top-header .icon-btn:hover {
+.fintech-top-header .icon-btn:hover {
     background-color: #f0f0f0;
     color: #000;
 }
 
-.opay-top-header .help-icon-btn {
+.fintech-top-header .help-icon-btn {
     font-size: 1.1rem; /* Smaller font for help icon to accommodate text */
 }
 
-.opay-top-header .help-icon-btn .help-text {
+.fintech-top-header .help-icon-btn .help-text {
     font-size: 0.65rem; /* Smaller text for "HELP" */
     font-weight: 600;
     margin-top: 0.1rem;
     line-height: 1;
 }
 
-.opay-top-header .notification-bell {
+.fintech-top-header .notification-bell {
     position: relative;
 }
 
-.opay-top-header .notification-badge {
+.fintech-top-header .notification-badge {
     position: absolute;
     top: 2px; /* Adjust as needed */
     right: 2px; /* Adjust as needed */
