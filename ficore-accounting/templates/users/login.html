@@ -50,7 +50,6 @@
                 </div>
                 <button type="submit" class="btn btn-primary" id="signInButton">{{ t('general_login', default='Sign In') | e }}</button>
                 <div class="links-container mt-3">
-                    <a href="{{ url_for('users.forgot_password') }}" class="text-indigo-600 hover:text-indigo-500">{{ t('general_forgot_password', default='Forgot Password?') | e }}</a>
                     <a href="{{ url_for('users.signup') }}" class="text-indigo-600 hover:text-indigo-500">{{ t('general_signup', default='Create an Account') | e }}</a>
                 </div>
             </form>
