@@ -7,6 +7,10 @@ GENERAL_TRANSLATIONS = {
         'general_register': 'Register',
         'general_back_to_dashboard': 'Back to Dashboard',
         'general_remember_me': 'Remember me',
+        # General module
+        'general_login_identifier': 'Login Identifier',
+        'general_identifier_required': 'Identifier is required',
+        'general_identifier_not_found': 'Identifier not found',
         'general_signup': 'Sign Up',
         'other': 'Other',
         # Existing translations (only including those used in the template for brevity)
@@ -1892,6 +1896,10 @@ GENERAL_TRANSLATIONS = {
         'general_terms': 'Sharuɗɗan Hidima',
         # New translations to add
         'general_agree_to_terms': 'Ta hanyar yin rajista, ka yarda da',
+        # General module
+        'general_login_identifier': 'Alamar Shiga',
+        'general_identifier_required': 'Ana buƙatar alama',
+        'general_identifier_not_found': 'Ba a sami alama ba',
         'general_remember_me': 'Ka tuna ni',
         'general_check_details': 'Da fatan za a duba imel ɗinka da sunan mai amfani don kuskuren rubutu (misali, tabbatar ka yi amfani da @gmail.com, ba @gmai.com ba).',
         'to_buy': 'Don Saya',
