@@ -5,6 +5,11 @@ GENERAL_TRANSLATIONS = {
         'business_home': 'Home',
         'general_logout': 'Logout',
         'general_register': 'Register',
+        'bills': 'Bills',
+        'view_wallet': 'View Wallet',
+        'special_bonus_title': 'Special Bonus',
+        'special_bonus_description': 'Unlock exclusive rewards with your subscription',
+        'learn_more': 'Learn More',
         # General module
         'general_business_setup': 'Business Setup',
         'phone_number: Invalid phone number format': 'Invalid phone number format',
@@ -1925,6 +1930,11 @@ GENERAL_TRANSLATIONS = {
         'plan_your_spending_quick_actions': 'Tsara Kashe Kuɗinku tare da Ayyuka masu Saurin Gudu',
         'shopping': 'Sayayya',
         # General module
+         'bills': 'Kuɗi',
+        'view_wallet': 'Duba Wallet',
+        'special_bonus_title': 'Kyauta ta Musamman',
+        'special_bonus_description': 'Buɗe lada na keɓance tare da biyan kuɗin ku',
+        'learn_more': 'Ƙara Koyo',
         'general_login_identifier': 'Alamar Shiga',
         'general_identifier_required': 'Ana buƙatar alama',
         'general_identifier_not_found': 'Ba a sami alama ba',
