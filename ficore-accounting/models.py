@@ -33,6 +33,8 @@ def get_db():
 def initialize_app_data(app):
     """
     Initialize MongoDB collections and indexes.
+    Performs a one-time reset of shopping-related collections (shopping_lists, shopping_items, pending_deletions)
+    in the testing environment on first deployment.
     
     Args:
         app: Flask application instance
@@ -60,6 +62,7 @@ def initialize_app_data(app):
             logger.info(f"MongoDB database: {db_instance.name}", extra={'session_id': 'no-session-id'})
             collections = db_instance.list_collection_names()
             
+            # Define collection schemas
             collection_schemas = {
                 'users': {
                     'validator': {
@@ -452,9 +455,96 @@ def initialize_app_data(app):
                     'indexes': [
                         {'key': [('expiration', ASCENDING)], 'expireAfterSeconds': 0}
                     ]
+                },
+                'system_config': {
+                    'validator': {
+                        '$jsonSchema': {
+                            'bsonType': 'object',
+                            'required': ['_id', 'value'],
+                            'properties': {
+                                '_id': {'bsonType': 'string'},
+                                'value': {'bsonType': ['bool', 'string', 'int', 'double', 'date', 'object', 'array']}
+                            }
+                        }
+                    },
+                    'indexes': [
+                        {'key': [('_id', ASCENDING)], 'unique': True}
+                    ]
                 }
             }
             
+            # One-time reset of shopping-related collections
+            reset_flag = db_instance.system_config.find_one({'_id': 'shopping_data_reset'})
+            if not reset_flag or not reset_flag.get('value', False):
+                try:
+                    # Delete all shopping lists
+                    lists_result = db_instance.shopping_lists.delete_many({})
+                    deleted_lists_count = lists_result.deleted_count
+                    logger.info(
+                        f"{trans('general_shopping_lists_deleted', default='Deleted {count} shopping lists')}: {deleted_lists_count}",
+                        extra={'session_id': 'no-session-id'}
+                    )
+
+                    # Delete all shopping items
+                    items_result = db_instance.shopping_items.delete_many({})
+                    deleted_items_count = items_result.deleted_count
+                    logger.info(
+                        f"{trans('general_shopping_items_deleted', default='Deleted {count} shopping items')}: {deleted_items_count}",
+                        extra={'session_id': 'no-session-id'}
+                    )
+
+                    # Delete all pending deletions
+                    pending_result = db_instance.pending_deletions.delete_many({})
+                    deleted_pending_count = pending_result.deleted_count
+                    logger.info(
+                        f"{trans('general_pending_deletions_deleted', default='Deleted {count} pending deletions')}: {deleted_pending_count}",
+                        extra={'session_id': 'no-session-id'}
+                    )
+
+                    # Log the reset action in audit_logs
+                    audit_data = {
+                        'admin_id': 'system',
+                        'action': 'bulk_delete_shopping_data',
+                        'details': {
+                            'deleted_lists': deleted_lists_count,
+                            'deleted_items': deleted_items_count,
+                            'deleted_pending': deleted_pending_count,
+                            'timestamp': datetime.utcnow().isoformat()
+                        },
+                        'timestamp': datetime.utcnow()
+                    }
+                    db_instance.audit_logs.insert_one(audit_data)
+                    logger.info(
+                        f"{trans('general_audit_log_created', default='Created audit log for bulk shopping data deletion')}",
+                        extra={'session_id': 'no-session-id'}
+                    )
+
+                    # Set the reset flag
+                    db_instance.system_config.update_one(
+                        {'_id': 'shopping_data_reset'},
+                        {'$set': {'value': True, 'updated_at': datetime.utcnow()}},
+                        upsert=True
+                    )
+                    logger.info(
+                        f"{trans('general_shopping_reset_flag_set', default='Set shopping data reset flag')}",
+                        extra={'session_id': 'no-session-id'}
+                    )
+
+                    # Clear cache for shopping lists
+                    get_shopping_lists.cache_clear()
+                    logger.info(
+                        f"{trans('general_cache_cleared', default='Cleared cache for shopping lists')}",
+                        extra={'session_id': 'no-session-id'}
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"{trans('general_shopping_reset_error', default='Error resetting shopping data')}: {str(e)}",
+                        exc_info=True,
+                        extra={'session_id': 'no-session-id', 'stack_trace': traceback.format_exc()}
+                    )
+                    raise
+            
+            # Initialize collections and indexes
             for collection_name, config in collection_schemas.items():
                 if collection_name == 'credit_requests' and collection_name in collections:
                     try:
@@ -582,6 +672,7 @@ def initialize_app_data(app):
                         exc_info=True, extra={'session_id': 'no-session-id'})
             raise
 
+# Rest of the original code remains unchanged
 class User:
     def __init__(self, id, email, display_name=None, role='personal', username=None, is_admin=False, setup_complete=False, coin_balance=0, ficore_credit_balance=0, language='en', dark_mode=False):
         self.id = id
@@ -1663,15 +1754,18 @@ def create_shopping_list(db, list_data):
         required_fields = ['name', 'session_id', 'budget', 'created_at', 'updated_at', 'total_spent', 'status']
         if not all(field in list_data for field in required_fields):
             raise ValueError(trans('general_missing_shopping_list_fields', default='Missing required shopping list fields'))
+        list_data['_id'] = str(uuid.uuid4())
         result = db.shopping_lists.insert_one(list_data)
         logger.info(f"{trans('general_shopping_list_created', default='Created shopping list with ID')}: {result.inserted_id}", 
                    extra={'session_id': list_data.get('session_id', 'no-session-id')})
+        get_shopping_lists.cache_clear()
         return str(result.inserted_id)
     except Exception as e:
         logger.error(f"{trans('general_shopping_list_creation_error', default='Error creating shopping list')}: {str(e)}", 
                     exc_info=True, extra={'session_id': list_data.get('session_id', 'no-session-id')})
         raise
 
+@lru_cache(maxsize=128)
 def get_shopping_lists(db, filter_kwargs):
     """
     Retrieve shopping list records based on filter criteria.
@@ -1705,12 +1799,13 @@ def update_shopping_list(db, list_id, update_data):
     try:
         update_data['updated_at'] = datetime.utcnow()
         result = db.shopping_lists.update_one(
-            {'_id': ObjectId(list_id)},
+            {'_id': list_id},
             {'$set': update_data}
         )
         if result.modified_count > 0:
             logger.info(f"{trans('general_shopping_list_updated', default='Updated shopping list with ID')}: {list_id}", 
                        extra={'session_id': 'no-session-id'})
+            get_shopping_lists.cache_clear()
             return True
         logger.info(f"{trans('general_shopping_list_no_change', default='No changes made to shopping list with ID')}: {list_id}", 
                    extra={'session_id': 'no-session-id'})
@@ -1743,7 +1838,7 @@ def create_pending_deletion(db, deletion_data):
     
     Args:
         db: MongoDB database instance
-        deletion_data: Dictionary containing pending deletion information
+        deletion_data: Dictionary containing deletion information
     
     Returns:
         str: ID of the created pending deletion record
@@ -1790,28 +1885,3 @@ def to_dict_pending_deletion(record):
         'created_at': record.get('created_at'),
         'expires_at': record.get('expires_at')
     }
-
-def delete_pending_deletion(db, deletion_id):
-    """
-    Delete a pending deletion record from the pending_deletions collection.
-    
-    Args:
-        db: MongoDB database instance
-        deletion_id: The ID of the pending deletion to delete
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        result = db.pending_deletions.delete_one({'_id': ObjectId(deletion_id)})
-        if result.deleted_count > 0:
-            logger.info(f"{trans('general_pending_deletion_deleted', default='Deleted pending deletion with ID')}: {deletion_id}", 
-                       extra={'session_id': 'no-session-id'})
-            return True
-        logger.info(f"{trans('general_pending_deletion_no_change', default='No pending deletion found with ID')}: {deletion_id}", 
-                   extra={'session_id': 'no-session-id'})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_pending_deletion_delete_error', default='Error deleting pending deletion with ID')} {deletion_id}: {str(e)}", 
-                    exc_info=True, extra={'session_id': 'no-session-id'})
-        raise
