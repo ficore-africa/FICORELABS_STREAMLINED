@@ -162,14 +162,6 @@ _PERSONAL_EXPLORE_FEATURES = [
         "icon": "bi-cart"
     },  
     {
-        "endpoint": "personal.food_order.main",
-        "label": "Food Order",
-        "label_key": "food_order",
-        "description_key": "food_order_desc",
-        "tooltip_key": "food_order_tooltip",
-        "icon": "bi-box-seam",    
-    },
-    {
         "endpoint": "credits.request_credits",
         "label": "Ficore Credits",
         "label_key": "credits_dashboard",
@@ -547,16 +539,6 @@ def get_explore_features():
                     "description_key": "shopping_management_desc",
                     "tooltip_key": "shopping_tooltip",
                     "icon": "bi-cart",
-                    "category": "Personal"
-                },
-                
-                {
-                    "endpoint": "personal.food_order.main",
-                    "label": "Food Order",
-                    "label_key": "food_order",
-                    "description_key": "food_order_desc",
-                    "tooltip_key": "food_order_tooltip",
-                    "icon": "bi-box-seam",
                     "category": "Personal"
                 },
                 {
