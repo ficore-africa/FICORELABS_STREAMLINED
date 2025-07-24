@@ -264,7 +264,7 @@ def initialize_app_data(app):
                                 'created_at': {'bsonType': 'date'},
                                 'updated_at': {'bsonType': 'date'},
                                 'store': {'bsonType': ['string', 'null']},
-                                'frequency': {'bsonType': 'int', 'minimum': 1}
+                                'frequency': {'bsonType': 'int', 'minimum': 1},
                                 'unit': {'bsonType': ['string', 'null']}
                             }
                         }
