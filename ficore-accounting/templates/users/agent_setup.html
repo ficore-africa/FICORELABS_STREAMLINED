@@ -111,7 +111,7 @@
             <div class="form-group mb-4">
                 <div class="form-check">
                     {{ form.terms(class="form-check-input" + (" is-invalid" if form.terms.errors else ""), required=True, id="terms", **{"aria-describedby": "termsFeedback" if form.terms.errors else "", "aria-required": "true"}) | safe }}
-                    <label class="form-check-label" for="terms">{{ t('general_terms', default='I accept the Terms and Conditions') | escape }}</label>
+                    <label class="form-check-label" for="terms">{{ t('general_agree_to_terms', default='By signing up, you agree to our') | escape }} <a href="{{ url_for('general_bp.terms') | escape }}" aria-label="{{ t('general_terms', default='Terms of Service') | escape }}">{{ t('general_terms', default='Terms of Service') | escape }}</a></label>
                 </div>
                 {% if form.terms.errors %}
                     <div id="termsFeedback" class="invalid-feedback" role="alert">
