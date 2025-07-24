@@ -333,7 +333,7 @@ def initialize_app_data(app):
                         }
                     },
                     'indexes': [
-                        {'key': [('user_id', ASCENDING)]},
+                        {'key': [('user_id', ASCENDING)], 'sparse': True},
                         {'key': [('session_id', ASCENDING)]},
                         {'key': [('timestamp', DESCENDING)]}
                     ]
