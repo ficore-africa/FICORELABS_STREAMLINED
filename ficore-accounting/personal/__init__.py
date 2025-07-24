@@ -15,13 +15,11 @@ from personal.bill import bill_bp
 from personal.budget import budget_bp
 from personal.summaries import summaries_bp
 from personal.shopping import shopping_bp
-from personal.food_order import food_order_bp
 
 personal_bp.register_blueprint(bill_bp)
 personal_bp.register_blueprint(budget_bp)
 personal_bp.register_blueprint(summaries_bp)
 personal_bp.register_blueprint(shopping_bp)
-personal_bp.register_blueprint(food_order_bp)
 
 def init_app(app):
     """Initialize all personal finance sub-blueprints."""
@@ -54,15 +52,7 @@ def index():
                 "icon": "bi-cart",
                 "url": url_for("personal.shopping.main", _external=True)
             },
-            {
-                "endpoint": "personal.food_order.main",
-                "label": "Food Order",
-                "label_key": "food_order",
-                "description_key": "food_order_desc",
-                "tooltip_key": "food_order_tooltip",
-                "icon": "bi-box-seam",
-                "url": url_for("personal.food_order.main", _external=True)
-            },
+
         ]
 
         # Define PERSONAL_EXPLORE_FEATURES with dynamic URLs
@@ -93,15 +83,6 @@ def index():
                 "tooltip_key": "shopping_tooltip",
                 "icon": "bi-cart",
                 "url": url_for("personal.shopping.main", _external=True)
-            },
-            {
-                "endpoint": "personal.food_order.main",
-                "label": "Food Order",
-                "label_key": "food_order",
-                "description_key": "food_order_desc",
-                "tooltip_key": "food_order_tooltip",
-                "icon": "bi-box-seam",
-                "url": url_for("personal.food_order.main", _external=True)
             },
             {
                 "endpoint": "credits.request_credits",
