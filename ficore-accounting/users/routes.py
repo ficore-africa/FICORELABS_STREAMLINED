@@ -337,9 +337,9 @@ def login():
             
             db = utils.get_mongo_db()
             if '@' in identifier:
-                user = db.users.find_one({'email': identifier})
+                user = db.users.find_one({'email': {'$regex': f'^{identifier}$', '$options': 'i'}})
             else:
-                user = db.users.find_one({'_id': identifier})
+                user = db.users.find_one({'_id': {'$regex': f'^{identifier}$', '$options': 'i'}})
             
             if not user:
                 flash(trans('general_identifier_not_found', default='Username or Email not found. Please check your signup details.'), 'danger')
@@ -353,7 +353,7 @@ def login():
                 return render_template('users/login.html', form=form, title=trans('general_login', lang=session.get('lang', 'en'))), 401
 
             logger.info(f"User found: {username}, proceeding with login")
-            if os.environ.get('ENABLE_2FA', 'true').lower() == 'true':
+            if os.environ.get('ENABLE_2FA', 'false').lower() == 'true':
                 otp = ''.join(str(random.randint(0, 9)) for _ in range(6))
                 try:
                     db.users.update_one(
