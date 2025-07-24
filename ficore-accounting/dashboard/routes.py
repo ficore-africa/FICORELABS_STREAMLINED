@@ -74,4 +74,4 @@ def index():
     except Exception as e:
         logger.error(f"Error fetching dashboard data for user {current_user.id}: {str(e)}")
         flash(trans('dashboard_load_error', default='An error occurred while loading the dashboard'), 'danger')
-        return redirect(url_for('general/home.html'))
+        return redirect(url_for('general_bp.home'))
