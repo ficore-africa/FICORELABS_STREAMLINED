@@ -112,16 +112,6 @@
                         <div class="personal-status-indicator" id="shoppingStatusLabel"></div>
                     </div>
                 </div>
-                <div class="personal-snapshot-item">
-                    <i class="bi bi-box-seam text-primary"></i>
-                    <div class="personal-snapshot-content">
-                        <div class="personal-snapshot-label">{{ t('food_order_spending', default='KasheKashen Odar Abinci') }}</div>
-                        <div class="personal-snapshot-value" id="foodOrderSpending" data-amount="0">
-                            <span class="personal-currency-symbol">₦</span><span class="personal-amount-value">0.00</span>
-                        </div>
-                        <div class="personal-status-indicator" id="foodOrderStatusLabel"></div>
-                    </div>
-                </div>
             </div>
         </section>
 
@@ -160,7 +150,6 @@ window.apiUrls = {
     budgetSummary: "/personal/summaries/budget/summary",
     billSummary: "/personal/summaries/bill/summary",
     shoppingSummary: "/personal/summaries/shopping/summary",
-    foodOrderSummary: "/personal/summaries/food_order/summary",
     ficoreBalance: "/personal/summaries/ficore_balance",
     recentActivity: "/personal/summaries/recent_activity",
     notifications: "/personal/summaries/notifications", // Still here for now, but will be used by base.html JS
@@ -169,10 +158,6 @@ window.apiUrls = {
     shareShoppingList: "/personal/shopping/lists/{list_id}/share",
     shoppingPriceHistory: "/personal/shopping/price_history/{item_name}",
     predictiveSuggestions: "/personal/shopping/suggestions",
-    manageFoodOrders: "/personal/food_order/main",
-    manageFoodOrderItems: "/personal/food_order/manage_items/{order_id}",
-    reorderFoodOrder: "/personal/food_order/reorder/{order_id}",
-    getNearestVendor: "/personal/food_order/get_nearest_vendor",
     requestFicoreCredits: "{{ url_for('credits.request_credits', _external=True) | e }}" // Add this for the "Add Credits" button
 };
 
@@ -275,23 +260,6 @@ function loadFinancialSummary() {
             console.error('Error loading shopping summary:', error);
         });
 
-    fetch(window.apiUrls.foodOrderSummary)
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                console.error('Food order summary error:', data.error);
-                return;
-            }
-            const foodOrderSpending = document.getElementById('foodOrderSpending');
-            if (foodOrderSpending) {
-                foodOrderSpending.querySelector('.personal-amount-value').dataset.amount = data.total_food_order_spent;
-                foodOrderSpending.querySelector('.personal-amount-value').textContent = amountsVisible ? formatCurrency(data.total_food_order_spent) : '****';
-                foodOrderSpending.querySelector('.personal-status-indicator').textContent = data.active_orders > 0 ? `${data.active_orders} ${window.t('active_orders', { context: 'foodOrder', default: 'Oda Masu Aiki' })}` : window.t('no_active_orders', { context: 'foodOrder', default: 'Babu Oda Masu Aiki' });
-            }
-        })
-        .catch(error => {
-            console.error('Error loading food order summary:', error);
-        });
 
     // Ficore Balance is now the main balance, ensure it's loaded first or independently
     fetch(window.apiUrls.ficoreBalance)
