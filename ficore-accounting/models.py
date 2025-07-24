@@ -321,7 +321,7 @@ def initialize_app_data(app):
                     'validator': {
                         '$jsonSchema': {
                             'bsonType': 'object',
-                            'required': ['user_id', 'tool_name', 'rating', 'timestamp'],
+                            'required': ['tool_name', 'rating', 'timestamp'],
                             'properties': {
                                 'user_id': {'bsonType': ['string', 'null']},
                                 'session_id': {'bsonType': ['string', 'null']},
@@ -969,9 +969,13 @@ def create_feedback(db, feedback_data):
         feedback_data: Dictionary containing feedback information
     """
     try:
-        required_fields = ['user_id', 'tool_name', 'rating', 'timestamp']
+        required_fields = ['tool_name', 'rating', 'timestamp']
         if not all(field in feedback_data for field in required_fields):
             raise ValueError(trans('general_missing_feedback_fields', default='Missing required feedback fields'))
+        if 'user_id' not in feedback_data or feedback_data['user_id'] is None:
+            feedback_data['user_id'] = 'anonymous'
+        logger.debug(f"Feedback data before insertion: {feedback_data}",
+                    extra={'session_id': feedback_data.get('session_id', 'no-session-id')})
         db.feedback.insert_one(feedback_data)
         logger.info(f"{trans('general_feedback_created', default='Created feedback record for tool')}: {feedback_data.get('tool_name')}", 
                    extra={'session_id': feedback_data.get('session_id', 'no-session-id')})
