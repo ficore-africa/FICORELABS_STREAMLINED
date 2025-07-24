@@ -534,7 +534,7 @@ def main():
                             'name': request.form.get(f'item_{item_id}_name', item['name']),
                             'quantity': int(request.form.get(f'item_{item_id}_quantity', item['quantity'])),
                             'price': float(clean_currency(request.form.get(f'item_{item_id}_price', str(item['price'])))),
-                            'unit': request.form.get(f'item_{item_id}_unit', item['unit']),
+                            'unit': request.form.get(f'item_{item_id}_unit', item.get('unit', 'piece')),
                             'category': request.form.get(f'item_{item_id}_category', item['category']),
                             'status': request.form.get(f'item_{item_id}_status', item['status']),
                             'store': request.form.get(f'item_{item_id}_store', item['store']),
