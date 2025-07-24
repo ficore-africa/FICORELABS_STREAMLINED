@@ -40,7 +40,7 @@
             {% endif %}
         </div>
         <div class="header-right">
-            <button class="icon-btn help-icon-btn" data-bs-toggle="tooltip" data-bs-title="{{ t('general_help_tooltip', default='Get help') | e }}" aria-label="{{ t('general_help', default='Help') | e }}">
+            <button class="icon-btn help-icon-btn" onclick="location.href='{% if current_user.is_authenticated %}{{ url_for('settings.profile') | e }}{% else %}{{ url_for('general_bp.contact') | e }}{% endif %}'" data-bs-toggle="tooltip" data-bs-title="{{ t('general_help_tooltip', default='Get help') | e }}" aria-label="{{ t('general_help', default='Help') | e }}">
                 <i class="bi bi-question-circle"></i>
                 <span class="help-text">{{ t('general_help', default='HELP') | e }}</span>
             </button>
