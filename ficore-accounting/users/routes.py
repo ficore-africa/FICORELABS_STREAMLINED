@@ -24,12 +24,23 @@ PASSWORD_REGEX = re.compile(r'.{6,}')
 PHONE_REGEX = re.compile(r'^\+?\d{10,15}$')
 AGENT_ID_REGEX = re.compile(r'^[A-Z0-9]{8}$')  # Agent ID: 8 alphanumeric characters
 
+# Custom validator for the login identifier
+def validate_identifier(form, field):
+    identifier = field.data
+    if '@' not in identifier:
+        if not USERNAME_REGEX.match(identifier):
+            raise validators.ValidationError(trans('general_username_format', default='Username must be alphanumeric with underscores'))
+
 class LoginForm(FlaskForm):
-    username = StringField(trans('general_username', default='Username'), [
-        validators.DataRequired(message=trans('general_username_required', default='Username is required')),
-        validators.Length(min=3, max=50, message=trans('general_username_length', default='Username must be between 3 and 50 characters')),
-        validators.Regexp(USERNAME_REGEX, message=trans('general_username_format', default='Username must be alphanumeric with underscores'))
-    ], render_kw={'class': 'form-control'})
+    username = StringField(
+        trans('general_login_identifier', default='Username or Email'),
+        [
+            validators.DataRequired(message=trans('general_identifier_required', default='Username or Email is required')),
+            validators.Length(min=3, max=50, message=trans('general_identifier_length', default='Identifier must be between 3 and 50 characters')),
+            validate_identifier
+        ],
+        render_kw={'class': 'form-control'}
+    )
     password = PasswordField(trans('general_password', default='Password'), [
         validators.DataRequired(message=trans('general_password_required', default='Password is required')),
         validators.Length(min=6, message=trans('general_password_length', default='Password must be at least 6 characters'))
@@ -320,21 +331,21 @@ def login():
     form = LoginForm()
     if form.validate_on_submit():
         try:
-            username = form.username.data.strip().lower()
-            logger.info(f"Login attempt for username: {username}, session_id: {session['session_id']}")
+            identifier = form.username.data.strip().lower()
+            logger.info(f"Login attempt for identifier: {identifier}, session_id: {session['session_id']}")
             
-            if not USERNAME_REGEX.match(username):
-                flash(trans('general_username_format', default='Username must be alphanumeric with underscores'), 'danger')
-                logger.warning(f"Invalid username format: {username}")
-                return render_template('users/login.html', form=form, title=trans('general_login', lang=session.get('lang', 'en'))), 401
-
             db = utils.get_mongo_db()
-            user = db.users.find_one({'_id': username})
+            if '@' in identifier:
+                user = db.users.find_one({'email': identifier})
+            else:
+                user = db.users.find_one({'_id': identifier})
+            
             if not user:
-                flash(trans('general_username_not_found', default='Username does not exist. Please check your signup details.'), 'danger')
-                logger.warning(f"Login attempt for non-existent username: {username}")
+                flash(trans('general_identifier_not_found', default='Username or Email not found. Please check your signup details.'), 'danger')
+                logger.warning(f"Login attempt for non-existent identifier: {identifier}")
                 return render_template('users/login.html', form=form, title=trans('general_login', lang=session.get('lang', 'en'))), 401
 
+            username = user['_id']
             if not check_password_hash(user['password'], form.password.data):
                 logger.warning(f"Failed login attempt for username: {username} (invalid password)")
                 flash(trans('general_invalid_password', default='Incorrect password'), 'danger')
@@ -387,11 +398,11 @@ def login():
                 return redirect(url_for(setup_route))
             return redirect(get_post_login_redirect(user.get('role', 'personal')))
         except errors.PyMongoError as e:
-            logger.error(f"MongoDB error during login for {username}: {str(e)}")
+            logger.error(f"MongoDB error during login for {identifier}: {str(e)}")
             flash(trans('general_database_error', default='An error occurred while accessing the database. Please try again later.'), 'danger')
             return render_template('users/login.html', form=form, title=trans('general_login', lang=session.get('lang', 'en'))), 500
         except Exception as e:
-            logger.error(f"Unexpected error during login for {username}: {str(e)}")
+            logger.error(f"Unexpected error during login for {identifier}: {str(e)}")
             flash(trans('general_error', default='An error occurred. Please try again.'), 'danger')
             return render_template('users/login.html', form=form, title=trans('general_login', lang=session.get('lang', 'en'))), 500
     else:
