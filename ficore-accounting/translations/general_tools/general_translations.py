@@ -9,7 +9,7 @@ GENERAL_TRANSLATIONS = {
         'general_business_setup': 'Business Setup',
         'phone_number: Invalid phone number format': 'Invalid phone number format',
         'Business Setup Completed Successfully': 'Business Setup Completed Successfully',
-        'general_hi_user': 'Hi, User',
+        'general_hi_user': 'Hello',
         'Error': 'Error',
         'add_credits': 'Add Credits',
         'plan_your_spending_quick_actions': 'Plan Your Spending with Quick Actions',
@@ -1919,7 +1919,7 @@ GENERAL_TRANSLATIONS = {
         'general_javascript_required': 'Ana buƙatar JavaScript don wannan fasalin',
         # New translations to add
         'general_agree_to_terms': 'Ta hanyar yin rajista, ka yarda da',
-        'general_hi_user': 'Sannu, Mai Amfani',
+        'general_hi_user': 'Sannu',
         'Error': 'Kuskure',
         'add_credits': 'Ƙara Kiredit',
         'plan_your_spending_quick_actions': 'Tsara Kashe Kuɗinku tare da Ayyuka masu Saurin Gudu',
