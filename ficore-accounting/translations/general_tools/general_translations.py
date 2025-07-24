@@ -5,6 +5,11 @@ GENERAL_TRANSLATIONS = {
         'business_home': 'Home',
         'general_logout': 'Logout',
         'general_register': 'Register',
+        # General module
+        'general_business_setup': 'Business Setup',
+        'phone_number: Invalid phone number format': 'Invalid phone number format',
+        'Business Setup Completed Successfully': 'Business Setup Completed Successfully',
+        'general_javascript_required': 'JavaScript is required for this feature',
         'general_back_to_dashboard': 'Back to Dashboard',
         'general_remember_me': 'Remember me',
         'general_identifier_length': 'Identifier must be between 3 and 50 characters',
@@ -1902,6 +1907,11 @@ GENERAL_TRANSLATIONS = {
         'general_scan_qr_tooltip': 'Sikan lambar QR don ƙara abu',
         'general_scan_qr': 'Sikan QR',
         'general_terms': 'Sharuɗɗan Hidima',
+        # General module
+        'general_business_setup': 'Saitin Kasuwanci',
+        'phone_number: Invalid phone number format': 'Tsarin lambar waya ba daidai ba ne',
+        'Business Setup Completed Successfully': 'An Kammala Saitin Kasuwanci Cikin Nasara',
+        'general_javascript_required': 'Ana buƙatar JavaScript don wannan fasalin',
         # New translations to add
         'general_agree_to_terms': 'Ta hanyar yin rajista, ka yarda da',
         # General module
