@@ -21,7 +21,6 @@ import re
 import uuid
 from models import log_tool_usage
 from session_utils import create_anonymous_session
-from app import app
 
 shopping_bp = Blueprint(
     'shopping',
