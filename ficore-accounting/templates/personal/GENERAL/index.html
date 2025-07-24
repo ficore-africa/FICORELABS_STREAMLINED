@@ -58,7 +58,7 @@
         <section class="personal-section-card personal-quick-actions-grid">
             <h3 class="personal-section-title visually-hidden">{{ t('plan_your_spending_quick_actions', default='Quick Actions') }}</h3>
             <div class="personal-actions-grid">
-                <a href="{{ url_for('personal.shopping_main', _external=True) | e }}" class="personal-quick-action-item personal-shopping-management text-decoration-none" aria-label="{{ t('shopping', default='Shopping') | e }}">
+                <a href="{{ url_for('personal.shopping.main', _external=True) | e }}" class="personal-quick-action-item personal-shopping-management text-decoration-none" aria-label="{{ t('shopping', default='Shopping') | e }}">
                     <div class="personal-action-icon-wrapper">
                         <i class="bi bi-cart personal-action-icon"></i>
                     </div>
