@@ -1,4 +1,4 @@
-from flask import Blueprint, request, session, redirect, url_for, render_template, flash, current_app, jsonify, Response
+from flask import Blueprint, request, session, redirect, url_for, render_template, flash, current_app, jsonify, Response, Flask
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect, CSRFError
 from wtforms import StringField, FloatField, IntegerField, SelectField, SubmitField
@@ -21,7 +21,7 @@ import re
 import uuid
 from models import log_tool_usage
 from session_utils import create_anonymous_session
-import app  # Import Flask app instance
+from app import app
 
 shopping_bp = Blueprint(
     'shopping',
