@@ -21,6 +21,7 @@ import re
 import uuid
 from models import log_tool_usage
 from session_utils import create_anonymous_session
+import app  # Import Flask app instance
 
 shopping_bp = Blueprint(
     'shopping',
@@ -452,7 +453,13 @@ def main():
                     with db.client.start_session() as mongo_session:
                         with mongo_session.start_transaction():
                             db.pending_deletions.insert_one(deletion_data, session=mongo_session)
-                            threading.Thread(target=process_delayed_deletion, args=(list_id, current_user.id if current_user.is_authenticated else None)).start()
+                            if current_user.is_authenticated and not is_admin():
+                                if not deduct_ficore_credits(db, current_user.id, 0.5, 'delete_shopping_list', list_id, mongo_session):
+                                    logger.error(f"Failed to deduct 0.5 Ficore Credits for deleting list {list_id} by user {current_user.id}", 
+                                                 extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
+                                    flash(trans('shopping_credit_deduction_failed', default='Failed to deduct Ficore Credits for deleting list.'), 'danger')
+                                    return redirect(url_for('personal.shopping.main', tab='dashboard'))
+                            threading.Thread(target=process_delayed_deletion, args=(list_id, current_user.id if current_user.is_authenticated else None, session['sid'])).start()
                     logger.info(f"Initiated delayed deletion for shopping list {list_id}", 
                                 extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
                     flash(trans('shopping_list_deletion_initiated', default='Shopping list deletion initiated. Will delete in 20 seconds.'), 'success')
@@ -1004,35 +1011,35 @@ def export_list_pdf(list_id):
         flash(trans('shopping_export_error', default='Error exporting shopping list to PDF.'), 'danger')
         return redirect(url_for('personal.shopping.main', tab='dashboard'))
 
-def process_delayed_deletion(list_id, user_id):
-    db = get_mongo_db()
-    try:
-        with db.client.start_session() as mongo_session:
-            with mongo_session.start_transaction():
-                pending = db.pending_deletions.find_one({'_id': ObjectId(list_id), 'user_id': str(user_id) if user_id else None}, session=mongo_session)
-                if not pending:
-                    return
-                shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), 'user_id': str(user_id) if user_id else None}, session=mongo_session)
-                if not shopping_list:
+def process_delayed_deletion(list_id, user_id, session_id):
+    with app.app_context():
+        db = get_mongo_db()
+        try:
+            with db.client.start_session() as mongo_session:
+                with mongo_session.start_transaction():
+                    pending = db.pending_deletions.find_one({'list_id': list_id, 'user_id': str(user_id) if user_id else None}, session=mongo_session)
+                    if not pending:
+                        logger.info(f"No pending deletion found for list {list_id}", 
+                                    extra={'session_id': session_id, 'ip_address': 'unknown'})
+                        return
+                    shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), 'user_id': str(user_id) if user_id else None}, session=mongo_session)
+                    if not shopping_list:
+                        db.pending_deletions.delete_one({'list_id': list_id}, session=mongo_session)
+                        logger.info(f"No shopping list found for {list_id}, removed pending deletion", 
+                                    extra={'session_id': session_id, 'ip_address': 'unknown'})
+                        return
+                    db.shopping_items.delete_many({'list_id': list_id}, session=mongo_session)
+                    result = db.shopping_lists.delete_one({'_id': ObjectId(list_id)}, session=mongo_session)
+                    if result.deleted_count == 0:
+                        logger.error(f"Failed to delete shopping list {list_id}: No documents deleted", 
+                                     extra={'session_id': session_id, 'ip_address': 'unknown'})
+                        raise ValueError(f"Failed to delete shopping list {list_id}")
                     db.pending_deletions.delete_one({'list_id': list_id}, session=mongo_session)
-                    return
-                db.shopping_items.delete_many({'list_id': list_id}, session=mongo_session)
-                result = db.shopping_lists.delete_one({'_id': ObjectId(list_id)}, session=mongo_session)
-                if result.deleted_count == 0:
-                    logger.error(f"Failed to delete shopping list {list_id}: No documents deleted", 
-                                 extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                    raise ValueError(f"Failed to delete shopping list {list_id}")
-                db.pending_deletions.delete_one({'list_id': list_id}, session=mongo_session)
-                if user_id and not is_admin():
-                    if not deduct_ficore_credits(db, user_id, 0.5, 'delete_shopping_list', list_id, mongo_session):
-                        logger.error(f"Failed to deduct 0.5 Ficore Credits for deleting list {list_id} by user {user_id}", 
-                                     extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                        raise ValueError(f"Failed to deduct Ficore Credits for deleting list {list_id}")
-        logger.info(f"Completed delayed deletion of shopping list {list_id}", 
-                    extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-    except Exception as e:
-        logger.error(f"Error in delayed deletion of list {list_id}: {str(e)}", 
-                     extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
+            logger.info(f"Completed delayed deletion of shopping list {list_id}", 
+                        extra={'session_id': session_id, 'ip_address': 'unknown'})
+        except Exception as e:
+            logger.error(f"Error in delayed deletion of list {list_id}: {str(e)}", 
+                         extra={'session_id': session_id, 'ip_address': 'unknown'})
 
 @shopping_bp.errorhandler(CSRFError)
 def handle_csrf_error(e):
