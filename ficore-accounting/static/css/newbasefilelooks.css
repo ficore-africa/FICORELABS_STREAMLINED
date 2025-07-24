@@ -3,22 +3,22 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.75rem 1rem;
-    background-color: #fff; /* fintech's header is typically white */
-    border-bottom: 1px solid #f0f0f0; /* Subtle separator */
-    position: sticky; /* Keeps it at the top when scrolling */
+    padding: 0.5rem 0.75rem; /* Reduced padding */
+    background-color: #fff;
+    border-bottom: 1px solid #f0f0f0;
+    position: sticky;
     top: 0;
     left: 0;
     width: 100%;
-    z-index: 1030; /* Above Bootstrap's navbar (1050) but below modals */
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* Subtle shadow */
+    z-index: 1030;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
 .fintech-top-header .header-left,
 .fintech-top-header .header-right {
     display: flex;
     align-items: center;
-    gap: 1rem; /* Space between items */
+    gap: 0.75rem; /* Reduced gap between items */
 }
 
 .fintech-top-header .profile-link {
@@ -29,43 +29,43 @@
 }
 
 .fintech-top-header .profile-avatar {
-    width: 38px; /* Slightly larger avatar */
-    height: 38px;
+    width: 32px; /* Smaller avatar */
+    height: 32px;
     border-radius: 50%;
     object-fit: cover;
-    margin-right: 0.5rem;
-    border: 1px solid #e0e0e0; /* Subtle border */
+    margin-right: 0.3rem; /* Reduced margin */
+    border: 1px solid #e0e0e0;
 }
 
 .fintech-top-header .greeting-text {
-    font-size: 1rem;
+    font-size: 0.85rem; /* Smaller font size for greeting */
     font-weight: 600;
-    color: #333; /* Darker text for visibility */
+    color: #333;
 }
 
 .fintech-top-header .ficore-logo {
-    height: 30px; /* Adjust logo size */
+    height: 25px; /* Adjusted logo size */
     margin-right: 0.5rem;
 }
 
 .fintech-top-header .brand-text {
-    font-size: 1.1rem;
+    font-size: 1rem; /* Slightly smaller brand text */
     font-weight: 700;
-    color: #333; /* FiCore brand text color */
+    color: #333;
 }
 
 .fintech-top-header .icon-btn {
     background: none;
     border: none;
-    color: #555; /* Icon color */
-    font-size: 1.3rem; /* Larger icons */
-    padding: 0.4rem;
-    border-radius: 50%; /* Make buttons circular */
+    color: #555;
+    font-size: 1.1rem; /* Smaller icons */
+    padding: 0.3rem; /* Reduced padding */
+    border-radius: 50%;
     transition: background-color 0.2s ease;
-    display: flex; /* For text below icon in help */
+    display: flex;
     flex-direction: column;
     align-items: center;
-    text-decoration: none; /* For the link-like behavior if not a button */
+    text-decoration: none;
 }
 
 .fintech-top-header .icon-btn:hover {
@@ -74,11 +74,11 @@
 }
 
 .fintech-top-header .help-icon-btn {
-    font-size: 1.1rem; /* Smaller font for help icon to accommodate text */
+    font-size: 1rem; /* Further reduced font for help icon */
 }
 
 .fintech-top-header .help-icon-btn .help-text {
-    font-size: 0.65rem; /* Smaller text for "HELP" */
+    font-size: 0.6rem; /* Even smaller text for "HELP" */
     font-weight: 600;
     margin-top: 0.1rem;
     line-height: 1;
@@ -90,18 +90,18 @@
 
 .fintech-top-header .notification-badge {
     position: absolute;
-    top: 2px; /* Adjust as needed */
-    right: 2px; /* Adjust as needed */
-    padding: 0.35em 0.55em; /* Make it more prominent */
-    font-size: 0.65rem;
+    top: 0px; /* Adjusted position */
+    right: 0px; /* Adjusted position */
+    padding: 0.25em 0.45em; /* Smaller badge */
+    font-size: 0.55rem; /* Smaller font for badge */
     line-height: 1;
     border-radius: 50%;
-    background-color: var(--bs-danger, #dc3545) !important; /* Ensure it's red */
+    background-color: var(--bs-danger, #dc3545) !important;
 }
 
 /* Adjust main content padding to avoid being hidden by fixed header */
 .main-content {
-    padding-top: 70px; /* Adjust this value based on the final height of your fixed header */
+    padding-top: 60px; /* Adjusted padding-top based on reduced header height */
 }
 
 /* Existing styles from base.html (ensure they are placed after the new header styles if in the same file) */
@@ -174,23 +174,23 @@ df-messenger {
 }
 /* Ensure language toggle in header matches icon-btn styling */
 .icon-btn.language-toggle {
-    padding: 0.5rem;
+    padding: 0.4rem; /* Reduced padding */
     border-radius: 50%;
     background: transparent;
     border: none;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.25rem; /* Tighter gap for header */
+    gap: 0.2rem; /* Even tighter gap for header */
 }
 
 .icon-btn.language-toggle:hover {
-    background-color: rgba(0, 0, 0, 0.1); /* Matches hover effect of other icon-btn */
+    background-color: rgba(0, 0, 0, 0.1);
 }
 
 /* Dark Mode Toggle Styles in Header */
 .icon-btn#darkModeToggle {
-    padding: 0.5rem;
+    padding: 0.4rem; /* Reduced padding */
     border-radius: 50%;
     background: transparent;
     border: none;
@@ -225,14 +225,14 @@ df-messenger {
 /* Responsive adjustments */
 @media (max-width: 576px) {
     .language-toggle span {
-        font-size: 0.8rem;
+        font-size: 0.75rem; /* Further reduced for small screens */
     }
     .icon-btn.language-toggle,
     .icon-btn#darkModeToggle {
-        padding: 0.4rem;
+        padding: 0.3rem; /* Further reduced for small screens */
     }
 }
-.btn btn-link language-toggle{
+.btn.btn-link.language-toggle{ /* Corrected selector */
     margin: 1rem 0;
     background: var(--gradient-primary);
     text-align: center;
@@ -246,6 +246,6 @@ df-messenger {
 }
 
 .language-toggle a:hover {
-    color: #2563eb; /* Darker blue */
+    color: #2563eb;
     text-decoration: underline;
 }
