@@ -64,7 +64,7 @@
                     </div>
                     <div class="personal-action-label">{{ t('shopping', default='Shopping') }}</div>
                 </a>
-                <a href="{{ url_for('bills.main', _external=True) | e }}" class="personal-quick-action-item personal-bills-management text-decoration-none" aria-label="{{ t('bills', default='Bills') | e }}">
+                <a href="{{ url_for('personal.bill.main', _external=True) | e }}" class="personal-quick-action-item personal-bills-management text-decoration-none" aria-label="{{ t('bills', default='Bills') | e }}">
                     <div class="personal-action-icon-wrapper">
                         <i class="bi bi-receipt personal-action-icon"></i>
                     </div>
