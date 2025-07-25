@@ -298,10 +298,10 @@ def initialize_app_data(app):
                                 'updated_at': {'bsonType': 'date'},
                                 'collaborators': {
                                     'bsonType': 'array',
-                                    'items': {'bsonType': 'string'}
+                                    'items': {'bsonType': 'string', 'pattern': r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'}
                                 },
                                 'total_spent': {'bsonType': 'double', 'minimum': 0},
-                                'status': {'enum': ['active', 'saved']}
+                                'status': {'enum': ['active', 'ongoing', 'saved']}
                             }
                         }
                     },
@@ -784,6 +784,34 @@ def get_user(db, user_id, email=None):
     except Exception as e:
         logger.error(f"{trans('general_user_fetch_error', default='Error getting user by ID')} {user_id}, email: {email}: {str(e)}", 
                     exc_info=True, extra={'user_id': user_id, 'email': email or 'no-email'})
+        raise
+
+def check_ficore_credit_balance(db, user_id, email, required_amount):
+    """
+    Check if a user has sufficient ficore credit balance.
+    
+    Args:
+        db: MongoDB database instance
+        user_id: ID of the user
+        email: Email address of the user
+        required_amount: Required credit amount
+    
+    Returns:
+        bool: True if sufficient balance, False otherwise
+    """
+    try:
+        user = db.users.find_one({'_id': user_id, 'email': email.lower()})
+        if not user:
+            logger.info(f"User not found for ID {user_id}, email: {email}", extra={'user_id': user_id, 'email': email})
+            return False
+        balance = user.get('ficore_credit_balance', 0)
+        sufficient = balance >= required_amount
+        logger.info(f"Checked credit balance for user {user_id}, email: {email}. Balance: {balance}, Required: {required_amount}, Sufficient: {sufficient}", 
+                   extra={'user_id': user_id, 'email': email})
+        return sufficient
+    except Exception as e:
+        logger.error(f"Error checking credit balance for user {user_id}, email: {email}: {str(e)}", 
+                    exc_info=True, extra={'user_id': user_id, 'email': email})
         raise
 
 def create_credit_request(db, request_data):
@@ -1463,6 +1491,32 @@ def create_shopping_item(db, item_data):
                     exc_info=True, extra={'user_id': item_data.get('user_id', 'no-user-id'), 'email': item_data.get('email', 'no-email')})
         raise
 
+def create_shopping_items_bulk(db, items_data):
+    """
+    Create multiple shopping items in the shopping_items collection.
+    
+    Args:
+        db: MongoDB database instance
+        items_data: List of dictionaries containing shopping item information
+    
+    Returns:
+        list: List of IDs of created shopping items
+    """
+    try:
+        required_fields = ['user_id', 'email', 'list_id', 'name', 'quantity', 'price', 'category', 'status', 'created_at', 'updated_at']
+        for item in items_data:
+            if not all(field in item for field in required_fields):
+                raise ValueError(trans('general_missing_shopping_item_fields', default='Missing required shopping item fields'))
+            item['unit'] = item.get('unit', 'piece')
+        results = db.shopping_items.insert_many(items_data)
+        logger.info(f"Created {len(results.inserted_ids)} shopping items", 
+                   extra={'user_id': items_data[0]['user_id'], 'email': items_data[0]['email']})
+        return [str(id) for id in results.inserted_ids]
+    except Exception as e:
+        logger.error(f"Error creating bulk shopping items: {str(e)}", 
+                    exc_info=True, extra={'user_id': items_data[0]['user_id'], 'email': items_data[0]['email']})
+        raise
+
 def get_shopping_items(db, filter_kwargs):
     """
     Retrieve shopping item records based on filter criteria.
@@ -1533,136 +1587,35 @@ def update_shopping_item(db, item_id, user_id, email, update_data):
                     exc_info=True, extra={'user_id': user_id, 'email': email})
         raise
 
-def update_record(db, record_id, user_id, email, update_data):
+def delete_shopping_item(db, item_id, user_id, email):
     """
-    Update a record in the records collection.
+    Delete a shopping item from the shopping_items collection.
     
     Args:
         db: MongoDB database instance
-        record_id: The ID of the record to update
+        item_id: The ID of the shopping item to delete
         user_id: ID of the user
         email: Email address of the user
-        update_data: Dictionary containing fields to update
     
     Returns:
-        bool: True if updated, False if not found or no changes made
+        bool: True if deleted, False if not found
     """
     try:
-        update_data['updated_at'] = datetime.utcnow()
-        result = db.records.update_one(
-            {'_id': ObjectId(record_id), 'user_id': user_id, 'email': email.lower()},
-            {'$set': update_data}
+        result = db.shopping_items.delete_one(
+            {'_id': ObjectId(item_id), 'user_id': user_id, 'email': email.lower()}
         )
-        if result.modified_count > 0:
-            logger.info(f"{trans('general_record_updated', default='Updated record with ID')}: {record_id}", 
-                       extra={'user_id': user_id, 'email': email})
+        if result.deleted_count > 0:
+            logger.info(f"Deleted shopping item {item_id}", extra={'user_id': user_id, 'email': email})
             return True
-        logger.info(f"{trans('general_record_no_change', default='No changes made to record with ID')}: {record_id}", 
-                   extra={'user_id': user_id, 'email': email})
+        logger.info(f"Shopping item {item_id} not found", extra={'user_id': user_id, 'email': email})
         return False
     except Exception as e:
-        logger.error(f"{trans('general_record_update_error', default='Error updating record with ID')} {record_id}: {str(e)}", 
-                    exc_info=True, extra={'user_id': user_id, 'email': email})
-        raise
-
-def update_cashflow(db, cashflow_id, user_id, email, update_data):
-    """
-    Update a cashflow record in the cashflows collection.
-    
-    Args:
-        db: MongoDB database instance
-        cashflow_id: The ID of the cashflow record to update
-        user_id: ID of the user
-        email: Email address of the user
-        update_data: Dictionary containing fields to update
-    
-    Returns:
-        bool: True if updated, False if not found or no changes made
-    """
-    try:
-        update_data['updated_at'] = datetime.utcnow()
-        result = db.cashflows.update_one(
-            {'_id': ObjectId(cashflow_id), 'user_id': user_id, 'email': email.lower()},
-            {'$set': update_data}
-        )
-        if result.modified_count > 0:
-            logger.info(f"{trans('general_cashflow_updated', default='Updated cashflow record with ID')}: {cashflow_id}", 
-                       extra={'user_id': user_id, 'email': email})
-            return True
-        logger.info(f"{trans('general_cashflow_no_change', default='No changes made to cashflow record with ID')}: {cashflow_id}", 
-                   extra={'user_id': user_id, 'email': email})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_cashflow_update_error', default='Error updating cashflow record with ID')} {cashflow_id}: {str(e)}",
-                     exc_info=True, extra={'user_id': user_id, 'email': email})
-        raise
-
-def update_budget(db, budget_id, user_id, email, update_data):
-    """
-    Update a budget record in the budgets collection.
-    
-    Args:
-        db: MongoDB database instance
-        budget_id: The ID of the budget record to update
-        user_id: ID of the user
-        email: Email address of the user
-        update_data: Dictionary containing fields to update
-    
-    Returns:
-        bool: True if updated, False if not found or no changes made
-    """
-    try:
-        update_data['updated_at'] = datetime.utcnow()
-        result = db.budgets.update_one(
-            {'_id': ObjectId(budget_id), 'user_id': user_id, 'email': email.lower()},
-            {'$set': update_data}
-        )
-        if result.modified_count > 0:
-            logger.info(f"{trans('general_budget_updated', default='Updated budget record with ID')}: {budget_id}", 
-                       extra={'user_id': user_id, 'email': email})
-            return True
-        logger.info(f"{trans('general_budget_no_change', default='No changes made to budget record with ID')}: {budget_id}", 
-                   extra={'user_id': user_id, 'email': email})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_budget_update_error', default='Error updating budget record with ID')} {budget_id}: {str(e)}", 
-                    exc_info=True, extra={'user_id': user_id, 'email': email})
-        raise
-
-def update_bill(db, bill_id, user_id, email, update_data):
-    """
-    Update a bill record in the bills collection.
-    
-    Args:
-        db: MongoDB database instance
-        bill_id: The ID of the bill record to update
-        user_id: ID of the user
-        email: Email address of the user
-        update_data: Dictionary containing fields to update
-    
-    Returns:
-        bool: True if updated, False if not found or no changes made
-    """
-    try:
-        update_data['updated_at'] = datetime.utcnow()
-        result = db.bills.update_one(
-            {'_id': ObjectId(bill_id), 'user_id': user_id, 'email': email.lower()},
-            {'$set': update_data}
-        )
-        if result.modified_count > 0:
-            logger.info(f"{trans('general_bill_updated', default='Updated bill record with ID')}: {bill_id}", 
-                       extra={'user_id': user_id, 'email': email})
-            return True
-        logger.info(f"{trans('general_bill_no_change', default='No changes made to bill record with ID')}: {bill_id}", 
-                   extra={'user_id': user_id, 'email': email})
-        return False
-    except Exception as e:
-        logger.error(f"{trans('general_bill_update_error', default='Error updating bill record with ID')} {bill_id}: {str(e)}", 
+        logger.error(f"{trans('general_shopping_item_delete_error', default='Error deleting shopping item with ID')} {item_id}: {str(e)}", 
                     exc_info=True, extra={'user_id': user_id, 'email': email})
         raise
 
 @lru_cache(maxsize=128)
-def get_shopping_lists(db, user_id, email, status='active'):
+def get_shopping_lists(db, user_id, email):
     """
     Retrieve shopping lists for a user based on filter criteria.
     
@@ -1670,17 +1623,12 @@ def get_shopping_lists(db, user_id, email, status='active'):
         db: MongoDB database instance
         user_id: ID of the user
         email: Email address of the user
-        status: Status of the shopping lists ('active' or 'saved')
     
     Returns:
         list: List of shopping list records
     """
     try:
-        filter_kwargs = {
-            'user_id': user_id,
-            'email': email.lower(),
-            'status': status
-        }
+        filter_kwargs = {'user_id': user_id, 'email': email.lower()}
         return list(db.shopping_lists.find(filter_kwargs).sort('updated_at', DESCENDING))
     except Exception as e:
         logger.error(f"{trans('general_shopping_lists_fetch_error', default='Error getting shopping lists')}: {str(e)}", 
@@ -1724,7 +1672,7 @@ def update_shopping_list(db, list_id, user_id, email, update_data):
         update_data: Dictionary containing fields to update
     
     Returns:
-        bool: True if updated, False if not found or no changes made
+        bool: True if successfully updated, False if not found or no changes made
     """
     try:
         update_data['updated_at'] = datetime.utcnow()
@@ -1745,6 +1693,42 @@ def update_shopping_list(db, list_id, user_id, email, update_data):
                     exc_info=True, extra={'user_id': user_id, 'email': email})
         raise
 
+def delete_shopping_list(db, list_id, user_id, email):
+    """
+    Delete a shopping list and its associated items from the shopping_lists and shopping_items collections.
+    
+    Args:
+        db: MongoDB database instance
+        list_id: The ID of the shopping list to delete
+        user_id: ID of the user
+        email: Email address of the user
+    
+    Returns:
+        bool: True if deleted, False if not found
+    """
+    try:
+        # Delete associated shopping items
+        items_result = db.shopping_items.delete_many({'list_id': list_id, 'user_id': user_id, 'email': email.lower()})
+        logger.info(f"Deleted {items_result.deleted_count} shopping items for list {list_id}", 
+                   extra={'user_id': user_id, 'email': email})
+        
+        # Delete the shopping list
+        result = db.shopping_lists.delete_one(
+            {'_id': ObjectId(list_id), 'user_id': user_id, 'email': email.lower()}
+        )
+        if result.deleted_count > 0:
+            logger.info(f"{trans('general_shopping_list_deleted', default='Deleted shopping list with ID')}: {list_id}", 
+                       extra={'user_id': user_id, 'email': email})
+            get_shopping_lists.cache_clear()
+            return True
+        logger.info(f"{trans('general_shopping_list_not_found', default='Shopping list not found with ID')}: {list_id}", 
+                   extra={'user_id': user_id, 'email': email})
+        return False
+    except Exception as e:
+        logger.error(f"{trans('general_shopping_list_delete_error', default='Error deleting shopping list with ID')} {list_id}: {str(e)}", 
+                    exc_info=True, extra={'user_id': user_id, 'email': email})
+        raise
+
 def to_dict_shopping_list(record):
     """Convert shopping list record to dictionary."""
     if not record:
@@ -1761,39 +1745,3 @@ def to_dict_shopping_list(record):
         'total_spent': record.get('total_spent', 0.0),
         'status': record.get('status', '')
     }
-
-def delete_shopping_list(db, list_id, user_id, email):
-    """
-    Delete a shopping list and its associated items from the shopping_lists and shopping_items collections.
-    
-    Args:
-        db: MongoDB database instance
-        list_id: The ID of the shopping list to delete
-        user_id: ID of the user
-        email: Email address of the user
-    
-    Returns:
-        bool: True if deleted, False if not found
-    """
-    try:
-        # Delete the shopping list
-        result = db.shopping_lists.delete_one(
-            {'_id': ObjectId(list_id), 'user_id': user_id, 'email': email.lower()}
-        )
-        if result.deleted_count == 0:
-            logger.info(f"{trans('general_shopping_list_not_found', default='Shopping list not found with ID')}: {list_id}", 
-                       extra={'user_id': user_id, 'email': email})
-            return False
-        
-        # Delete associated shopping items
-        items_result = db.shopping_items.delete_many(
-            {'list_id': list_id, 'user_id': user_id, 'email': email.lower()}
-        )
-        logger.info(f"{trans('general_shopping_list_deleted', default='Deleted shopping list with ID')}: {list_id}, {items_result.deleted_count} items removed", 
-                   extra={'user_id': user_id, 'email': email})
-        get_shopping_lists.cache_clear()
-        return True
-    except Exception as e:
-        logger.error(f"{trans('general_shopping_list_deletion_error', default='Error deleting shopping list with ID')} {list_id}: {str(e)}", 
-                    exc_info=True, extra={'user_id': user_id, 'email': email})
-        raise
