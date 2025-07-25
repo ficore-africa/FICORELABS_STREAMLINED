@@ -470,7 +470,7 @@ def main():
                     if not check_ficore_credit_balance(required_amount=1, user_id=current_user.id):
                         current_app.logger.warning(f"Insufficient Ficore Credits for adding bill by user {current_user.id}", extra={'session_id': session.get('sid', 'unknown')})
                         flash(trans('bill_insufficient_credits', default='Insufficient Ficore Credits to add a bill. Please purchase more credits.'), 'danger')
-                        return redirect(url_for('agents_bp.manage_credits'))
+                        return redirect(url_for('dashboard.index'))
                 try:
                     form_data = {
                         'bill_name': request.form.get('bill_name', ''),
@@ -576,7 +576,7 @@ def main():
                     if not check_ficore_credit_balance(required_amount=1, user_id=current_user.id):
                         current_app.logger.warning(f"Insufficient Ficore Credits for {action} on bill {bill_id} by user {current_user.id}", extra={'session_id': session.get('sid', 'unknown')})
                         flash(trans('bill_insufficient_credits', default='Insufficient Ficore Credits to perform this action. Please purchase more credits.'), 'danger')
-                        return redirect(url_for('agents_bp.manage_credits'))
+                        return redirect(url_for('dashboard.index'))
                 if action == 'update_bill':
                     try:
                         form_data = {
