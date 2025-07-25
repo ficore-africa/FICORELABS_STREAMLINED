@@ -651,7 +651,7 @@ def reset_password():
         except Exception as e:
             logger.error(f"Error redirecting authenticated user in reset_password: {str(e)}")
             flash(trans.error('general_error', default='An error occurred. Please try again.'), 'error')
-            return redirect(url_for('users.login')), 500'
+            return redirect(url_for('users.login')), 500
 
     token = request.args.get('token')
     lang = request.args.get('lang', 'en')
