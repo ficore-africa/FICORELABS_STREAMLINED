@@ -1138,7 +1138,7 @@ def to_dict_credit_request(record_data: Optional[dict]) -> dict:
         'payment_method': record.get('payment_method', ''),
         'receipt_file_id': str(record.get('receipt_file_id', '')) if record.get('receipt_file_id') else None,
         'status': record.get('status', ''),
-        'created_at': record.get('created_at', '').
+        'created_at': record.get('created_at', ''),
         'updated_at': record.get('updated_at'),
         'admin_id': record.get('admin_id')
     }
