@@ -38,7 +38,7 @@ def sanitize_input(value: str) -> str:
 class UserData(BaseModel):
     email: EmailStr
     password: str
-    role: str = Field(default='personal', regex=r'^(personal|trader|agent|admin)$')
+    role: str = Field(default='personal', pattern=r'^(personal|trader|agent|admin)$')
     display_name: Optional[str] = None
     is_admin: bool = False
     setup_complete: bool = False
