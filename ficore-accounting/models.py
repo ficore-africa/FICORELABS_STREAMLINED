@@ -1770,7 +1770,8 @@ def to_dict_shopping_list(record):
         'total_spent': record.get('total_spent', 0.0),
         'status': record.get('status', '')
     }
-    def delete_shopping_list(db, list_id, user_id=None, email=None):
+    
+def delete_shopping_list(db, list_id, user_id=None, email=None):
     """
     Delete a shopping list and its associated items from the shopping_lists and shopping_items collections.
     
