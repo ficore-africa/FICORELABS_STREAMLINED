@@ -1,10 +1,10 @@
-from flask import Blueprint, request, session, redirect, url_for, render_template, flash, current_app, jsonify, Response, Flask
+from flask import Blueprint, request, redirect, url_for, render_template, flash, jsonify, Response
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect, CSRFError
 from wtforms import StringField, FloatField, IntegerField, SelectField, SubmitField
 from wtforms.validators import DataRequired, NumberRange, ValidationError, Email
 from flask_login import current_user, login_required
-from datetime import datetime, timedelta
+from datetime import datetime
 from helpers.branding_helpers import draw_ficore_pdf_header
 from bson import ObjectId
 from pymongo import errors
@@ -16,11 +16,8 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch
 from io import BytesIO
 from contextlib import nullcontext
-import threading
-import re
 import uuid
 from models import log_tool_usage
-from session_utils import create_anonymous_session
 
 shopping_bp = Blueprint(
     'shopping',
@@ -51,18 +48,15 @@ def auto_categorize_item(item_name):
 def deduct_ficore_credits(db, user_id, amount, action, item_id=None, mongo_session=None):
     try:
         if amount <= 0:
-            logger.error(f"Invalid deduction amount {amount} for user {user_id}, action: {action}", 
-                         extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
+            logger.error(f"Invalid deduction amount {amount} for user {user_id}, action: {action}")
             return False
         user = db.users.find_one({'_id': user_id}, session=mongo_session)
         if not user:
-            logger.error(f"User {user_id} not found for credit deduction, action: {action}", 
-                         extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
+            logger.error(f"User {user_id} not found for credit deduction, action: {action}")
             return False
         current_balance = user.get('ficore_credit_balance', 0)
         if current_balance < amount:
-            logger.warning(f"Insufficient credits for user {user_id}: required {amount}, available {current_balance}, action: {action}", 
-                          extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
+            logger.warning(f"Insufficient credits for user {user_id}: required {amount}, available {current_balance}, action: {action}")
             return False
         session_to_use = mongo_session if mongo_session else db.client.start_session()
         owns_session = not mongo_session
@@ -74,8 +68,7 @@ def deduct_ficore_credits(db, user_id, amount, action, item_id=None, mongo_sessi
                     session=session_to_use
                 )
                 if result.modified_count == 0:
-                    logger.error(f"Failed to deduct {amount} credits for user {user_id}, action: {action}: No documents modified", 
-                                 extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
+                    logger.error(f"Failed to deduct {amount} credits for user {user_id}, action: {action}: No documents modified")
                     raise ValueError(f"Failed to update user balance for {user_id}")
                 transaction = {
                     '_id': ObjectId(),
@@ -84,33 +77,20 @@ def deduct_ficore_credits(db, user_id, amount, action, item_id=None, mongo_sessi
                     'amount': -amount,
                     'item_id': str(item_id) if item_id else None,
                     'timestamp': datetime.utcnow(),
-                    'session_id': session.get('sid', 'no-session-id'),
                     'status': 'completed'
                 }
                 db.ficore_credit_transactions.insert_one(transaction, session=session_to_use)
-            logger.info(f"Deducted {amount} Ficore Credits for {action} by user {user_id}", 
-                        extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
+            logger.info(f"Deducted {amount} Ficore Credits for {action} by user {user_id}")
             return True
         except (ValueError, errors.PyMongoError) as e:
-            logger.error(f"Transaction aborted for user {user_id}, action: {action}: {str(e)}", 
-                         extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr, 'stack_trace': traceback.format_exc()})
+            logger.error(f"Transaction aborted for user {user_id}, action: {action}: {str(e)}")
             return False
         finally:
             if owns_session:
                 session_to_use.end_session()
     except Exception as e:
-        logger.error(f"Unexpected error deducting {amount} Ficore Credits for {action} by user {user_id}: {str(e)}", 
-                     extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr, 'stack_trace': traceback.format_exc()})
+        logger.error(f"Unexpected error deducting {amount} Ficore Credits for {action} by user {user_id}: {str(e)}")
         return False
-
-def custom_login_required(f):
-    from functools import wraps
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if current_user.is_authenticated or session.get('is_anonymous', False):
-            return f(*args, **kwargs)
-        return redirect(url_for('users.login', next=request.url))
-    return decorated_function
 
 class ShoppingListForm(FlaskForm):
     name = StringField(
@@ -133,28 +113,6 @@ class ShoppingListForm(FlaskForm):
         self.name.label.text = trans('shopping_list_name', lang) or 'List Name'
         self.budget.label.text = trans('shopping_budget', lang) or 'Budget'
         self.submit.label.text = trans('shopping_submit', lang) or 'Create List'
-
-class ShoppingListEditForm(FlaskForm):
-    name = StringField(
-        trans('shopping_list_name', default='List Name'),
-        validators=[DataRequired(message=trans('shopping_name_required', default='List name is required'))]
-    )
-    budget = FloatField(
-        trans('shopping_budget', default='Budget'),
-        filters=[clean_currency],
-        validators=[
-            DataRequired(message=trans('shopping_budget_required', default='Budget is required')),
-            NumberRange(min=0, max=10000000000, message=trans('shopping_budget_max', default='Budget must be between 0 and 10 billion'))
-        ]
-    )
-    submit = SubmitField(trans('shopping_edit_submit', default='Update List'))
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        lang = session.get('lang', 'en')
-        self.name.label.text = trans('shopping_list_name', lang) or 'List Name'
-        self.budget.label.text = trans('shopping_budget', lang) or 'Budget'
-        self.submit.label.text = trans('shopping_edit_submit', lang) or 'Update List'
 
 class ShoppingItemForm(FlaskForm):
     name = StringField(
@@ -250,20 +208,19 @@ class ShareListForm(FlaskForm):
         self.email.label.text = trans('shopping_collaborator_email', lang) or 'Collaborator Email'
         self.submit.label.text = trans('shopping_share_submit', lang) or 'Share List'
 
+@shopping_bp.route('/', methods=['GET'])
+def landing():
+    if current_user.is_authenticated:
+        return redirect(url_for('shopping.main'))
+    return render_template('personal/SHOPPING/landing.html', tool_title=trans('shopping_title', default='Shopping List Planner'))
+
 @shopping_bp.route('/main', methods=['GET', 'POST'])
-@custom_login_required
+@login_required
 @requires_role(['personal', 'admin'])
 def main():
-    if 'sid' not in session:
-        create_anonymous_session()
-        session['is_anonymous'] = True
-        logger.debug(f"New anonymous session created with sid: {session['sid']}", extra={'session_id': session['sid']})
-    session.permanent = True
-    session.modified = True
     list_form = ShoppingListForm()
     item_form = ShoppingItemForm()
     share_form = ShareListForm()
-    edit_form = ShoppingListEditForm()
     db = get_mongo_db()
 
     valid_tabs = ['create-list', 'dashboard', 'manage-list']
@@ -271,238 +228,258 @@ def main():
     if active_tab not in valid_tabs:
         active_tab = 'create-list'
 
-    try:
-        log_tool_usage(
-            tool_name='shopping',
-            db=db,
-            user_id=current_user.id if current_user.is_authenticated else None,
-            session_id=session.get('sid', 'no-session-id'),
-            action='main_view'
-        )
-    except Exception as e:
-        logger.error(f"Failed to log tool usage: {str(e)}", extra={'session_id': session.get('sid', 'no-session-id')})
-        flash(trans('shopping_log_error', default='Error logging shopping activity. Please try again.'), 'warning')
-
-    filter_criteria = {} if is_admin() else {'user_id': str(current_user.id)} if current_user.is_authenticated else {'session_id': session['sid']}
+    filter_criteria = {} if is_admin() else {'user_id': str(current_user.id)}
     lists = []
-    latest_list = None
+    selected_list = None
     categories = {}
     items = []
 
     try:
+        log_tool_usage(
+            tool_name='shopping',
+            db=db,
+            user_id=current_user.id,
+            action='main_view'
+        )
+    except Exception as e:
+        flash(trans('shopping_log_error', default='Error logging activity.'), 'danger')
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'create_list' and list_form.validate_on_submit():
+            if not is_admin():
+                if not check_ficore_credit_balance(required_amount=0.1, user_id=current_user.id):
+                    flash(trans('shopping_insufficient_credits', default='Insufficient credits to create a list.'), 'danger')
+                    return redirect(url_for('dashboard.index'))
+            list_data = {
+                '_id': ObjectId(),
+                'name': list_form.name.data,
+                'user_id': str(current_user.id),
+                'budget': list_form.budget.data,
+                'created_at': datetime.utcnow(),
+                'updated_at': datetime.utcnow(),
+                'collaborators': [],
+                'items': [],
+                'total_spent': 0.0,
+                'status': 'active'
+            }
+            try:
+                with db.client.start_session() as mongo_session:
+                    with mongo_session.start_transaction():
+                        db.shopping_lists.insert_one(list_data, session=mongo_session)
+                        if not is_admin():
+                            if not deduct_ficore_credits(db, current_user.id, 0.1, 'create_shopping_list', list_data['_id'], mongo_session):
+                                db.shopping_lists.delete_one({'_id': list_data['_id']}, session=mongo_session)
+                                flash(trans('shopping_credit_deduction_failed', default='Failed to deduct credits.'), 'danger')
+                                return redirect(url_for('shopping.main', tab='create-list'))
+                flash(trans('shopping_list_created', default='List created successfully!'), 'success')
+                return redirect(url_for('shopping.main', tab='dashboard'))
+            except Exception as e:
+                logger.error(f"Failed to save list {list_data['_id']}: {str(e)}")
+                flash(trans('shopping_list_error', default='Error saving list.'), 'danger')
+
+        elif action == 'save_list':
+            list_id = request.form.get('list_id')
+            if not ObjectId.is_valid(list_id):
+                flash(trans('shopping_invalid_list_id', default='Invalid list ID.'), 'danger')
+                return redirect(url_for('shopping.main', tab='dashboard'))
+            shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), **filter_criteria})
+            if not shopping_list:
+                flash(trans('shopping_list_not_found', default='List not found.'), 'danger')
+                return redirect(url_for('shopping.main', tab='dashboard'))
+            items_data = request.form.get('items_data', '[]')
+            try:
+                import json
+                items = json.loads(items_data)
+                total_operations = len(items)
+                required_credits = total_operations * 0.1
+                if not is_admin():
+                    if not check_ficore_credit_balance(required_amount=required_credits, user_id=current_user.id):
+                        flash(trans('shopping_insufficient_credits', default='Insufficient credits to save items.'), 'danger')
+                        return redirect(url_for('dashboard.index'))
+                with db.client.start_session() as mongo_session:
+                    with mongo_session.start_transaction():
+                        total_spent = 0.0
+                        for item in items:
+                            item_id = ObjectId()
+                            item_data = {
+                                '_id': item_id,
+                                'list_id': list_id,
+                                'user_id': str(current_user.id),
+                                'name': item['name'],
+                                'quantity': int(item['quantity']),
+                                'price': float(clean_currency(item['price'])),
+                                'unit': item['unit'],
+                                'category': item['category'],
+                                'status': item['status'],
+                                'store': item['store'],
+                                'frequency': int(item['frequency']),
+                                'created_at': datetime.utcnow(),
+                                'updated_at': datetime.utcnow()
+                            }
+                            db.shopping_items.insert_one(item_data, session=mongo_session)
+                            total_spent += item_data['price'] * item_data['quantity']
+                            if not is_admin():
+                                if not deduct_ficore_credits(db, current_user.id, 0.1, 'add_shopping_item', item_id, mongo_session):
+                                    flash(trans('shopping_credit_deduction_failed', default='Failed to deduct credits for item.'), 'danger')
+                                    return redirect(url_for('shopping.main', tab='dashboard'))
+                        db.shopping_lists.update_one(
+                            {'_id': ObjectId(list_id)},
+                            {'$set': {'status': 'saved', 'total_spent': total_spent, 'updated_at': datetime.utcnow()}},
+                            session=mongo_session
+                        )
+                flash(trans('shopping_list_saved', default='List saved successfully!'), 'success')
+                if total_spent > shopping_list['budget']:
+                    flash(trans('shopping_over_budget', default='Warning: Total spent exceeds budget by ') + format_currency(total_spent - shopping_list['budget']) + '.', 'warning')
+                return redirect(url_for('shopping.main', tab='dashboard'))
+            except Exception as e:
+                logger.error(f"Error saving list {list_id}: {str(e)}")
+                flash(trans('shopping_list_error', default='Error saving list.'), 'danger')
+
+        elif action == 'share_list' and share_form.validate_on_submit():
+            list_id = request.form.get('list_id')
+            if not ObjectId.is_valid(list_id):
+                flash(trans('shopping_invalid_list_id', default='Invalid list ID.'), 'danger')
+                return redirect(url_for('shopping.main', tab='dashboard'))
+            shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), **filter_criteria})
+            if not shopping_list:
+                flash(trans('shopping_list_not_found', default='List not found.'), 'danger')
+                return redirect(url_for('shopping.main', tab='dashboard'))
+            collaborator = db.users.find_one({'email': share_form.email.data})
+            if not collaborator:
+                flash(trans('shopping_user_not_found', default='User with this email not found.'), 'danger')
+                return redirect(url_for('shopping.main', tab='dashboard'))
+            try:
+                db.shopping_lists.update_one(
+                    {'_id': ObjectId(list_id)},
+                    {'$addToSet': {'collaborators': share_form.email.data}, '$set': {'updated_at': datetime.utcnow()}}
+                )
+                flash(trans('shopping_list_shared', default='List shared successfully!'), 'success')
+            except Exception as e:
+                logger.error(f"Error sharing list {list_id}: {str(e)}")
+                flash(trans('shopping_share_error', default='Error sharing list.'), 'danger')
+            return redirect(url_for('shopping.main', tab='dashboard'))
+
+        elif action == 'delete_list':
+            list_id = request.form.get('list_id')
+            if not ObjectId.is_valid(list_id):
+                flash(trans('shopping_invalid_list_id', default='Invalid list ID.'), 'danger')
+                return redirect(url_for('shopping.main', tab='dashboard'))
+            shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), **filter_criteria})
+            if not shopping_list:
+                flash(trans('shopping_list_not_found', default='List not found.'), 'danger')
+                return redirect(url_for('shopping.main', tab='dashboard'))
+            if not is_admin():
+                if not check_ficore_credit_balance(required_amount=0.5, user_id=current_user.id):
+                    flash(trans('shopping_insufficient_credits', default='Insufficient credits to delete list.'), 'danger')
+                    return redirect(url_for('dashboard.index'))
+            try:
+                with db.client.start_session() as mongo_session:
+                    with mongo_session.start_transaction():
+                        db.shopping_items.delete_many({'list_id': list_id}, session=mongo_session)
+                        db.shopping_lists.delete_one({'_id': ObjectId(list_id)}, session=mongo_session)
+                        if not is_admin():
+                            if not deduct_ficore_credits(db, current_user.id, 0.5, 'delete_shopping_list', list_id, mongo_session):
+                                flash(trans('shopping_credit_deduction_failed', default='Failed to deduct credits for deletion.'), 'danger')
+                                return redirect(url_for('shopping.main', tab='dashboard'))
+                flash(trans('shopping_list_deleted', default='List deleted successfully!'), 'success')
+            except Exception as e:
+                logger.error(f"Error deleting list {list_id}: {str(e)}")
+                flash(trans('shopping_list_error', default='Error deleting list.'), 'danger')
+            return redirect(url_for('shopping.main', tab='dashboard'))
+
+    lists = list(db.shopping_lists.find(filter_criteria).sort('created_at', -1))
+    lists_dict = {}
+    for lst in lists:
+        list_items = list(db.shopping_items.find({'list_id': str(lst['_id'])}))
+        list_data = {
+            'id': str(lst['_id']),
+            'name': lst.get('name'),
+            'budget': format_currency(lst.get('budget', 0.0)),
+            'budget_raw': float(lst.get('budget', 0.0)),
+            'total_spent': format_currency(lst.get('total_spent', 0.0)),
+            'total_spent_raw': float(lst.get('total_spent', 0.0)),
+            'status': lst.get('status', 'active'),
+            'created_at': lst.get('created_at').strftime('%Y-%m-%d') if lst.get('created_at') else 'N/A',
+            'collaborators': lst.get('collaborators', []),
+            'items': [{
+                'id': str(item['_id']),
+                'name': item.get('name'),
+                'quantity': item.get('quantity', 1),
+                'price': format_currency(item.get('price', 0.0)),
+                'price_raw': float(item.get('price', 0.0)),
+                'unit': item.get('unit', 'piece'),
+                'category': item.get('category', 'other'),
+                'status': item.get('status', 'to_buy'),
+                'store': item.get('store', 'Unknown'),
+                'frequency': item.get('frequency', 7)
+            } for item in list_items]
+        }
+        lists_dict[list_data['id']] = list_data
+
+    selected_list_id = request.args.get('list_id')
+    if selected_list_id and ObjectId.is_valid(selected_list_id):
+        selected_list = lists_dict.get(selected_list_id)
+        if selected_list:
+            items = selected_list['items']
+            categories = {
+                trans('shopping_category_fruits', default='Fruits'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'fruits'),
+                trans('shopping_category_vegetables', default='Vegetables'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'vegetables'),
+                trans('shopping_category_dairy', default='Dairy'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'dairy'),
+                trans('shopping_category_meat', default='Meat'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'meat'),
+                trans('shopping_category_grains', default='Grains'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'grains'),
+                trans('shopping_category_beverages', default='Beverages'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'beverages'),
+                trans('shopping_category_household', default='Household'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'household'),
+                trans('shopping_category_other', default='Other'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'other')
+            }
+            categories = {k: v for k, v in categories.items() if v > 0}
+
+    tips = [
+        trans('shopping_tip_plan_ahead', default='Plan your shopping list ahead to avoid impulse buys.'),
+        trans('shopping_tip_compare_prices', default='Compare prices across stores to save money.'),
+        trans('shopping_tip_bulk_buy', default='Buy non-perishable items in bulk to reduce costs.'),
+        trans('shopping_tip_check_sales', default='Check for sales or discounts before shopping.')
+    ]
+    insights = []
+    if selected_list and selected_list['budget_raw'] > 0:
+        if selected_list['total_spent_raw'] > selected_list['budget_raw']:
+            insights.append(trans('shopping_insight_over_budget', default='You are over budget. Consider removing non-essential items.'))
+        elif selected_list['total_spent_raw'] < selected_list['budget_raw'] * 0.5:
+            insights.append(trans('shopping_insight_under_budget', default='You are under budget. Consider allocating funds to savings.'))
+
+    return render_template(
+        'personal/SHOPPING/shopping_main.html',
+        list_form=list_form,
+        item_form=item_form,
+        share_form=share_form,
+        lists=lists_dict,
+        selected_list=selected_list,
+        items=items,
+        categories=categories,
+        tips=tips,
+        insights=insights,
+        tool_title=trans('shopping_title', default='Shopping List Planner'),
+        active_tab=active_tab
+    )
+
+@shopping_bp.route('/lists/<list_id>/manage', methods=['GET', 'POST'])
+@login_required
+@requires_role(['personal', 'admin'])
+def manage_list(list_id):
+    db = get_mongo_db()
+    filter_criteria = {'user_id': str(current_user.id)} if not is_admin() else {}
+    try:
+        if not ObjectId.is_valid(list_id):
+            flash(trans('shopping_invalid_list_id', default='Invalid list ID.'), 'danger')
+            return redirect(url_for('shopping.main', tab='manage-list'))
+        shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), **filter_criteria})
+        if not shopping_list:
+            flash(trans('shopping_list_not_found', default='List not found.'), 'danger')
+            return redirect(url_for('shopping.main', tab='manage-list'))
+
         if request.method == 'POST':
             action = request.form.get('action')
-            if action == 'create_list' and list_form.validate_on_submit():
-                if current_user.is_authenticated and not is_admin():
-                    if not check_ficore_credit_balance(required_amount=0.1, user_id=current_user.id):
-                        logger.warning(f"Insufficient Ficore Credits for creating shopping list by user {current_user.id}", 
-                                      extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                        flash(trans('shopping_insufficient_credits', default='Insufficient Ficore Credits to create a list. Please purchase more credits.'), 'danger')
-                        return redirect(url_for('dashboard.index'))
-                try:
-                    log_tool_usage(
-                        tool_name='shopping',
-                        db=db,
-                        user_id=current_user.id if current_user.is_authenticated else None,
-                        session_id=session.get('sid', 'no-session-id'),
-                        action='create_shopping_list'
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to log shopping list creation: {str(e)}", 
-                                 extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                    flash(trans('shopping_log_error', default='Error logging shopping list creation. Continuing with submission.'), 'warning')
-
-                list_data = {
-                    '_id': ObjectId(),
-                    'name': list_form.name.data,
-                    'user_id': str(current_user.id) if current_user.is_authenticated else None,
-                    'session_id': session['sid'],
-                    'budget': list_form.budget.data,
-                    'created_at': datetime.utcnow(),
-                    'updated_at': datetime.utcnow(),
-                    'collaborators': [],
-                    'items': [],
-                    'total_spent': 0.0,
-                    'status': 'active'
-                }
-                try:
-                    with db.client.start_session() as mongo_session:
-                        with mongo_session.start_transaction():
-                            db.shopping_lists.insert_one(list_data, session=mongo_session)
-                            if current_user.is_authenticated and not is_admin():
-                                if not deduct_ficore_credits(db, current_user.id, 0.1, 'create_shopping_list', list_data['_id'], mongo_session):
-                                    db.shopping_lists.delete_one({'_id': list_data['_id']}, session=mongo_session)
-                                    logger.error(f"Failed to deduct 0.1 Ficore Credits for creating list {list_data['_id']} by user {current_user.id}", 
-                                                 extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                                    flash(trans('shopping_credit_deduction_failed', default='Failed to deduct Ficore Credits for creating list.'), 'danger')
-                                    return redirect(url_for('personal.shopping.main', tab='create-list'))
-                    logger.info(f"Created shopping list {list_data['_id']} for user {current_user.id if current_user.is_authenticated else 'anonymous'}", 
-                                extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                    flash(trans('shopping_list_created', default='Shopping list created successfully!'), 'success')
-                    return redirect(url_for('personal.shopping.main', tab='dashboard'))
-                except Exception as e:
-                    logger.error(f"Failed to save shopping list {list_data['_id']}: {str(e)}", 
-                                 extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                    flash(trans('shopping_list_error', default='Error saving shopping list.'), 'danger')
-
-            elif action == 'add_item' and item_form.validate_on_submit():
-                list_id = request.form.get('list_id')
-                if not ObjectId.is_valid(list_id):
-                    flash(trans('shopping_invalid_list_id', default='Invalid list ID format.'), 'danger')
-                    return redirect(url_for('personal.shopping.main', tab='dashboard'))
-                shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), **filter_criteria})
-                if not shopping_list:
-                    flash(trans('shopping_list_not_found', default='Shopping list not found or you are not the owner.'), 'danger')
-                    return redirect(url_for('personal.shopping.main', tab='dashboard'))
-                if current_user.is_authenticated and not is_admin():
-                    if not check_ficore_credit_balance(required_amount=0.1, user_id=current_user.id):
-                        logger.warning(f"Insufficient Ficore Credits for adding item to list {list_id} by user {current_user.id}", 
-                                      extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                        flash(trans('shopping_insufficient_credits', default='Insufficient Ficore Credits to add an item. Please purchase more credits.'), 'danger')
-                        return redirect(url_for('dashboard.index'))
-                item_data = {
-                    '_id': ObjectId(),
-                    'list_id': list_id,
-                    'user_id': str(current_user.id) if current_user.is_authenticated else None,
-                    'session_id': session['sid'],
-                    'name': item_form.name.data,
-                    'quantity': item_form.quantity.data,
-                    'price': item_form.price.data,
-                    'unit': item_form.unit.data,
-                    'category': item_form.category.data,
-                    'status': item_form.status.data,
-                    'store': item_form.store.data,
-                    'frequency': item_form.frequency.data,
-                    'created_at': datetime.utcnow(),
-                    'updated_at': datetime.utcnow()
-                }
-                try:
-                    with db.client.start_session() as mongo_session:
-                        with mongo_session.start_transaction():
-                            db.shopping_items.insert_one(item_data, session=mongo_session)
-                            db.shopping_lists.update_one(
-                                {'_id': ObjectId(list_id)},
-                                {'$inc': {'total_spent': float(item_form.price.data * item_form.quantity.data)}, '$set': {'updated_at': datetime.utcnow()}},
-                                session=mongo_session
-                            )
-                            if current_user.is_authenticated and not is_admin():
-                                if not deduct_ficore_credits(db, current_user.id, 0.1, 'add_shopping_item', item_data['_id'], mongo_session):
-                                    db.shopping_items.delete_one({'_id': item_data['_id']}, session=mongo_session)
-                                    logger.error(f"Failed to deduct 0.1 Ficore Credits for adding item {item_data['_id']} to list {list_id}", 
-                                                 extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                                    flash(trans('shopping_credit_deduction_failed', default='Failed to deduct Ficore Credits for adding item.'), 'danger')
-                                    return redirect(url_for('personal.shopping.main', tab='dashboard'))
-                    flash(trans('shopping_item_added', default='Item added successfully!'), 'success')
-                    return redirect(url_for('personal.shopping.main', tab='dashboard'))
-                except Exception as e:
-                    logger.error(f"Failed to add item to list {list_id}: {str(e)}", 
-                                 extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                    flash(trans('shopping_item_error', default='Error adding item.'), 'danger')
-
-            elif action == 'share_list' and share_form.validate_on_submit():
-                list_id = request.form.get('list_id')
-                if not ObjectId.is_valid(list_id):
-                    flash(trans('shopping_invalid_list_id', default='Invalid list ID format.'), 'danger')
-                    return redirect(url_for('personal.shopping.main', tab='dashboard'))
-                shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), **filter_criteria})
-                if not shopping_list:
-                    flash(trans('shopping_list_not_found', default='Shopping list not found or you are not the owner.'), 'danger')
-                    return redirect(url_for('personal.shopping.main', tab='dashboard'))
-                collaborator = db.users.find_one({'email': share_form.email.data})
-                if not collaborator:
-                    flash(trans('shopping_user_not_found', default='User with this email not found.'), 'danger')
-                    return redirect(url_for('personal.shopping.main', tab='dashboard'))
-                try:
-                    db.shopping_lists.update_one(
-                        {'_id': ObjectId(list_id)},
-                        {'$addToSet': {'collaborators': share_form.email.data}, '$set': {'updated_at': datetime.utcnow()}}
-                    )
-                    logger.info(f"Shared list {list_id} with {share_form.email.data}", 
-                                extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                    flash(trans('shopping_list_shared', default='List shared successfully!'), 'success')
-                except Exception as e:
-                    logger.error(f"Error sharing list {list_id}: {str(e)}", 
-                                 extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                    flash(trans('shopping_share_error', default='Error sharing list.'), 'danger')
-                return redirect(url_for('personal.shopping.main', tab='dashboard'))
-
-            elif action == 'delete_list':
-                list_id = request.form.get('list_id')
-                if not ObjectId.is_valid(list_id):
-                    flash(trans('shopping_invalid_list_id', default='Invalid list ID format.'), 'danger')
-                    return redirect(url_for('personal.shopping.main', tab='dashboard'))
-                shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), **filter_criteria})
-                if not shopping_list:
-                    flash(trans('shopping_list_not_found', default='Shopping list not found or you are not the owner.'), 'danger')
-                    return redirect(url_for('personal.shopping.main', tab='dashboard'))
-                if current_user.is_authenticated and not is_admin():
-                    if not check_ficore_credit_balance(required_amount=0.5, user_id=current_user.id):
-                        logger.warning(f"Insufficient Ficore Credits for deleting list {list_id} by user {current_user.id}", 
-                                      extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                        flash(trans('shopping_insufficient_credits', default='Insufficient Ficore Credits to delete a list. Please purchase more credits.'), 'danger')
-                        return redirect(url_for('dashboard.index'))
-                deletion_data = {
-                    'list_id': list_id,
-                    'user_id': str(current_user.id) if current_user.is_authenticated else None,
-                    'session_id': session['sid'],
-                    'created_at': datetime.utcnow(),
-                    'expires_at': datetime.utcnow() + timedelta(seconds=20)
-                }
-                try:
-                    with db.client.start_session() as mongo_session:
-                        with mongo_session.start_transaction():
-                            db.pending_deletions.insert_one(deletion_data, session=mongo_session)
-                            if current_user.is_authenticated and not is_admin():
-                                if not deduct_ficore_credits(db, current_user.id, 0.5, 'delete_shopping_list', list_id, mongo_session):
-                                    logger.error(f"Failed to deduct 0.5 Ficore Credits for deleting list {list_id} by user {current_user.id}", 
-                                                 extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                                    flash(trans('shopping_credit_deduction_failed', default='Failed to deduct Ficore Credits for deleting list.'), 'danger')
-                                    return redirect(url_for('personal.shopping.main', tab='dashboard'))
-                            threading.Thread(target=process_delayed_deletion, args=(list_id, current_user.id if current_user.is_authenticated else None, session['sid'])).start()
-                    logger.info(f"Initiated delayed deletion for shopping list {list_id}", 
-                                extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                    flash(trans('shopping_list_deletion_initiated', default='Shopping list deletion initiated. Will delete in 20 seconds.'), 'success')
-                except Exception as e:
-                    logger.error(f"Error initiating deletion of list {list_id}: {str(e)}", 
-                                 extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                    flash(trans('shopping_list_error', default='Error initiating deletion.'), 'danger')
-                return redirect(url_for('personal.shopping.main', tab='dashboard'))
-
-            elif action == 'save_list':
-                list_id = request.form.get('list_id')
-                if not ObjectId.is_valid(list_id):
-                    flash(trans('shopping_invalid_list_id', default='Invalid list ID format.'), 'danger')
-                    return redirect(url_for('personal.shopping.main', tab='dashboard'))
-                shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), **filter_criteria})
-                if not shopping_list:
-                    flash(trans('shopping_list_not_found', default='Shopping list not found or you are not the owner.'), 'danger')
-                    return redirect(url_for('personal.shopping.main', tab='dashboard'))
-                try:
-                    with db.client.start_session() as mongo_session:
-                        with mongo_session.start_transaction():
-                            db.shopping_lists.update_one(
-                                {'_id': ObjectId(list_id)},
-                                {'$set': {'status': 'saved', 'updated_at': datetime.utcnow()}},
-                                session=mongo_session
-                            )
-                    logger.info(f"Saved shopping list {list_id} for user {current_user.id if current_user.is_authenticated else 'anonymous'}", 
-                                extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                    flash(trans('shopping_list_saved', default='Shopping list saved successfully!'), 'success')
-                except Exception as e:
-                    logger.error(f"Error saving list {list_id}: {str(e)}", 
-                                 extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                    flash(trans('shopping_list_error', default='Error saving shopping list.'), 'danger')
-                return redirect(url_for('personal.shopping.main', tab='dashboard'))
-
-            elif action == 'save_list_changes':
-                list_id = request.form.get('list_id')
-                if not ObjectId.is_valid(list_id):
-                    flash(trans('shopping_invalid_list_id', default='Invalid list ID format.'), 'danger')
-                    return redirect(url_for('personal.shopping.main', tab='manage-list'))
-                shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), **filter_criteria})
-                if not shopping_list:
-                    flash(trans('shopping_list_not_found', default='Shopping list not found or you are not the owner.'), 'danger')
-                    return redirect(url_for('personal.shopping.main', tab='manage-list'))
+            if action == 'save_changes':
                 new_name = request.form.get('list_name', shopping_list['name'])
                 new_budget_str = request.form.get('list_budget', str(shopping_list['budget']))
                 try:
@@ -511,22 +488,15 @@ def main():
                         raise ValueError
                 except ValueError:
                     flash(trans('shopping_budget_invalid', default='Invalid budget value.'), 'danger')
-                    return redirect(url_for('personal.shopping.main', tab='manage-list'))
+                    return redirect(url_for('shopping.main', tab='manage-list', list_id=list_id))
                 existing_items = list(db.shopping_items.find({'list_id': list_id}))
                 added = 0
                 edited = 0
                 deleted = 0
-                last_deleted = session.get('last_deleted_item', None)
-                if last_deleted:
-                    del session['last_deleted_item']
                 for item in existing_items:
                     item_id = str(item['_id'])
                     if f'delete_{item_id}' in request.form:
                         db.shopping_items.delete_one({'_id': item['_id']})
-                        session['last_deleted_item'] = {
-                            'item': item,
-                            'deleted_at': datetime.utcnow().isoformat()
-                        }
                         deleted += 1
                     else:
                         new_item_data = {
@@ -545,7 +515,7 @@ def main():
                                 {'$set': {**new_item_data, 'updated_at': datetime.utcnow()}}
                             )
                             edited += 1
-                for i in range(1, 6):  # 5 new item slots
+                for i in range(1, 6):
                     new_name = request.form.get(f'new_item_name_{i}', '').strip()
                     if new_name:
                         try:
@@ -562,8 +532,7 @@ def main():
                             new_item_data = {
                                 '_id': ObjectId(),
                                 'list_id': list_id,
-                                'user_id': str(current_user.id) if current_user.is_authenticated else None,
-                                'session_id': session['sid'],
+                                'user_id': str(current_user.id),
                                 'name': new_name,
                                 'quantity': new_quantity,
                                 'price': new_price,
@@ -581,62 +550,29 @@ def main():
                             flash(trans('shopping_item_error', default='Error adding new item: ') + str(e), 'danger')
                 total_operations = added + edited + deleted
                 required_credits = total_operations * 0.1
-                if current_user.is_authenticated and not is_admin():
+                if not is_admin():
                     if not check_ficore_credit_balance(required_amount=required_credits, user_id=current_user.id):
-                        logger.warning(f"Insufficient Ficore Credits for saving changes to list {list_id} by user {current_user.id}", 
-                                      extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                        flash(trans('shopping_insufficient_credits', default='Insufficient Ficore Credits to save changes. Please purchase more credits.'), 'danger')
+                        flash(trans('shopping_insufficient_credits', default='Insufficient credits to save changes.'), 'danger')
                         return redirect(url_for('dashboard.index'))
-                db.shopping_lists.update_one(
-                    {'_id': ObjectId(list_id)},
-                    {'$set': {'name': new_name, 'budget': new_budget, 'updated_at': datetime.utcnow()}}
-                )
-                items = list(db.shopping_items.find({'list_id': list_id}))
-                total_spent = sum(item['price'] * item['quantity'] for item in items)
-                db.shopping_lists.update_one(
-                    {'_id': ObjectId(list_id)},
-                    {'$set': {'total_spent': total_spent}}
-                )
-                if current_user.is_authenticated and not is_admin():
-                    if not deduct_ficore_credits(db, current_user.id, required_credits, 'save_shopping_list_changes', list_id):
-                        flash(trans('shopping_credit_deduction_failed', default='Failed to deduct Ficore Credits for saving changes.'), 'danger')
-                    else:
-                        flash(trans('shopping_changes_saved', default='Changes saved successfully!'), 'success')
-                if total_spent > new_budget:
-                    over_by = total_spent - new_budget
-                    flash(trans('shopping_over_budget', default='Warning: Total spent exceeds budget by ') + format_currency(over_by) + '.', 'warning')
-                return redirect(url_for('personal.shopping.main', tab='manage-list'))
-
-            elif action == 'undo_last_delete':
-                last_deleted = session.get('last_deleted_item')
-                if last_deleted and ObjectId.is_valid(last_deleted['item']['_id']):
-                    try:
-                        deleted_at = datetime.fromisoformat(last_deleted['deleted_at'])
-                        if (datetime.utcnow() - deleted_at).total_seconds() > 120:  # 2-minute timeout
-                            del session['last_deleted_item']
-                            flash(trans('shopping_undo_expired', default='Undo period has expired.'), 'warning')
-                            return redirect(url_for('personal.shopping.main', tab='manage-list'))
-                    except (ValueError, TypeError):
-                        del session['last_deleted_item']
-                        flash(trans('shopping_no_undo', default='No recent deletion to undo.'), 'warning')
-                        return redirect(url_for('personal.shopping.main', tab='manage-list'))
-                    list_id = last_deleted['item']['list_id']
-                    shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), **filter_criteria})
-                    if shopping_list:
-                        db.shopping_items.insert_one(last_deleted['item'])
+                with db.client.start_session() as mongo_session:
+                    with mongo_session.start_transaction():
+                        items = list(db.shopping_items.find({'list_id': list_id}))
+                        total_spent = sum(item['price'] * item['quantity'] for item in items)
                         db.shopping_lists.update_one(
                             {'_id': ObjectId(list_id)},
-                            {'$inc': {'total_spent': last_deleted['item']['price'] * last_deleted['item']['quantity']}, '$set': {'updated_at': datetime.utcnow()}}
+                            {'$set': {'name': new_name, 'budget': new_budget, 'total_spent': total_spent, 'updated_at': datetime.utcnow()}},
+                            session=mongo_session
                         )
-                        del session['last_deleted_item']
-                        flash(trans('shopping_item_restored', default='Last deleted item restored!'), 'success')
-                    else:
-                        flash(trans('shopping_list_not_found', default='Shopping list not found.'), 'danger')
-                else:
-                    flash(trans('shopping_no_undo', default='No recent deletion to undo.'), 'warning')
-                return redirect(url_for('personal.shopping.main', tab='manage-list'))
+                        if not is_admin():
+                            if not deduct_ficore_credits(db, current_user.id, required_credits, 'save_shopping_list_changes', list_id, mongo_session):
+                                flash(trans('shopping_credit_deduction_failed', default='Failed to deduct credits for changes.'), 'danger')
+                                return redirect(url_for('shopping.main', tab='manage-list', list_id=list_id))
+                flash(trans('shopping_changes_saved', default='Changes saved successfully!'), 'success')
+                if total_spent > new_budget:
+                    flash(trans('shopping_over_budget', default='Warning: Total spent exceeds budget by ') + format_currency(total_spent - new_budget) + '.', 'warning')
+                return redirect(url_for('shopping.main', tab='manage-list', list_id=list_id))
 
-        lists = list(db.shopping_lists.find(filter_criteria).sort('created_at', -1).limit(10))
+        lists = list(db.shopping_lists.find(filter_criteria).sort('created_at', -1))
         lists_dict = {}
         for lst in lists:
             list_items = list(db.shopping_items.find({'list_id': str(lst['_id'])}))
@@ -664,191 +600,51 @@ def main():
                 } for item in list_items]
             }
             lists_dict[list_data['id']] = list_data
-            if not latest_list or (lst.get('created_at') and (latest_list['created_at'] == 'N/A' or lst.get('created_at') > datetime.strptime(latest_list['created_at'], '%Y-%m-%d'))):
-                latest_list = list_data
-                items = list_data['items']
-                categories = {
-                    trans('shopping_category_fruits', default='Fruits'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'fruits'),
-                    trans('shopping_category_vegetables', default='Vegetables'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'vegetables'),
-                    trans('shopping_category_dairy', default='Dairy'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'dairy'),
-                    trans('shopping_category_meat', default='Meat'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'meat'),
-                    trans('shopping_category_grains', default='Grains'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'grains'),
-                    trans('shopping_category_beverages', default='Beverages'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'beverages'),
-                    trans('shopping_category_household', default='Household'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'household'),
-                    trans('shopping_category_other', default='Other'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'other')
-                }
-                categories = {k: v for k, v in categories.items() if v > 0}
-
-        if not latest_list:
-            latest_list = {
-                'id': None,
-                'name': '',
-                'budget': format_currency(0.0),
-                'budget_raw': 0.0,
-                'total_spent': format_currency(0.0),
-                'total_spent_raw': 0.0,
-                'status': 'active',
-                'created_at': 'N/A',
-                'collaborators': [],
-                'items': []
-            }
-            items = []
+        selected_list = lists_dict.get(list_id)
+        items = selected_list['items']
+        categories = {
+            trans('shopping_category_fruits', default='Fruits'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'fruits'),
+            trans('shopping_category_vegetables', default='Vegetables'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'vegetables'),
+            trans('shopping_category_dairy', 'Dairy'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'dairy'),
+            trans('shopping_category_meat', 'Meat'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'meat'),
+            trans('shopping_category_grains', 'Grains'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'grains'),
+            trans('shopping_category_beverages', 'Beverages'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'beverages'),
+            trans('shopping_category_household', 'Household'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'household'),
+            trans('shopping_category_other', 'Other'): sum(item['price_raw'] * item['quantity'] for item in items if item['category'] == 'other')
+        }
+        categories = {k: v for k, v in categories.items() if v > 0}
 
         tips = [
-            trans('shopping_tip_plan_ahead', default='Plan your shopping list ahead to avoid impulse buys.'),
+            trans('shopping_tip_plan_ahead', default='Plan your shopping ahead to avoid impulse buys.'),
             trans('shopping_tip_compare_prices', default='Compare prices across stores to save money.'),
-            trans('shopping_tip_bulk_buy', default='Buy non-perishable items in bulk to reduce costs.'),
+            trans('shopping_tip_bulk_buy', default='Buy non-perishables in bulk to reduce costs.'),
             trans('shopping_tip_check_sales', default='Check for sales or discounts before shopping.')
         ]
         insights = []
-        if latest_list['budget_raw'] > 0:
-            if latest_list['total_spent_raw'] > latest_list['budget_raw']:
+        if selected_list['budget_raw'] > 0:
+            if selected_list['total_spent_raw'] > selected_list['budget_raw']:
                 insights.append(trans('shopping_insight_over_budget', default='You are over budget. Consider removing non-essential items.'))
-            elif latest_list['total_spent_raw'] < latest_list['budget_raw'] * 0.5:
+            elif selected_list['total_spent_raw'] < selected_list['budget_raw'] * 0.5:
                 insights.append(trans('shopping_insight_under_budget', default='You are under budget. Consider allocating funds to savings.'))
 
-        return render_template(
-            'personal/SHOPPING/shopping_main.html',
-            list_form=list_form,
-            item_form=item_form,
-            share_form=share_form,
-            edit_form=edit_form,
-            lists=lists_dict,
-            latest_list=latest_list,
-            items=items,
-            categories=categories,
-            tips=tips,
-            insights=insights,
-            tool_title=trans('shopping_title', default='Shopping List Planner'),
-            active_tab=active_tab
-        )
-    except Exception as e:
-        logger.error(f"Unexpected error in shopping.main: {str(e)}", 
-                     extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-        flash(trans('shopping_dashboard_load_error', default='Error loading shopping dashboard.'), 'danger')
-        return render_template(
-            'personal/SHOPPING/shopping_main.html',
-            list_form=list_form,
-            item_form=item_form,
-            share_form=share_form,
-            edit_form=edit_form,
-            lists={},
-            latest_list={
-                'id': None,
-                'name': '',
-                'budget': format_currency(0.0),
-                'budget_raw': 0.0,
-                'total_spent': format_currency(0.0),
-                'total_spent_raw': 0.0,
-                'status': 'active',
-                'created_at': 'N/A',
-                'collaborators': [],
-                'items': []
-            },
-            items=[],
-            categories={},
-            tips=[],
-            insights=[],
-            tool_title=trans('shopping_title', default='Shopping List Planner'),
-            active_tab=active_tab
-        ), 500
-
-@shopping_bp.route('/lists/<list_id>/edit', methods=['GET', 'POST'])
-@login_required
-@requires_role(['personal', 'admin'])
-def edit_list(list_id):
-    db = get_mongo_db()
-    edit_form = ShoppingListEditForm()
-    filter_criteria = {'user_id': str(current_user.id)} if not is_admin() else {}
-    
-    try:
-        shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), **filter_criteria})
-        if not shopping_list:
-            flash(trans('shopping_list_not_found', default='Shopping list not found or you are not the owner.'), 'danger')
-            return redirect(url_for('personal.shopping.main', tab='manage-list'))
-        
-        if request.method == 'POST' and edit_form.validate_on_submit():
-            if current_user.is_authenticated and not is_admin():
-                if not check_ficore_credit_balance(required_amount=0.1, user_id=current_user.id):
-                    logger.warning(f"Insufficient Ficore Credits for editing list {list_id} by user {current_user.id}", 
-                                  extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                    flash(trans('shopping_insufficient_credits', default='Insufficient Ficore Credits to edit a list. Please purchase more credits.'), 'danger')
-                    return redirect(url_for('dashboard.index'))
-            
-            try:
-                with db.client.start_session() as mongo_session:
-                    with mongo_session.start_transaction():
-                        db.shopping_lists.update_one(
-                            {'_id': ObjectId(list_id)},
-                            {
-                                '$set': {
-                                    'name': edit_form.name.data,
-                                    'budget': edit_form.budget.data,
-                                    'updated_at': datetime.utcnow()
-                                }
-                            },
-                            session=mongo_session
-                        )
-                        if current_user.is_authenticated and not is_admin():
-                            if not deduct_ficore_credits(db, current_user.id, 0.1, 'edit_shopping_list', list_id, mongo_session):
-                                logger.error(f"Failed to deduct 0.1 Ficore Credits for editing list {list_id} by user {current_user.id}", 
-                                             extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                                flash(trans('shopping_credit_deduction_failed', default='Failed to deduct Ficore Credits for editing list.'), 'danger')
-                                return redirect(url_for('personal.shopping.main', tab='manage-list'))
-                logger.info(f"Updated shopping list {list_id} for user {current_user.id}", 
-                            extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                flash(trans('shopping_list_updated', default='Shopping list updated successfully!'), 'success')
-                return redirect(url_for('personal.shopping.main', tab='manage-list'))
-            except Exception as e:
-                logger.error(f"Error updating list {list_id}: {str(e)}", 
-                             extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                flash(trans('shopping_list_error', default='Error updating shopping list.'), 'danger')
-        
-        edit_form.name.data = shopping_list.get('name')
-        edit_form.budget.data = float(shopping_list.get('budget', 0.0))
-        
         return render_template(
             'personal/SHOPPING/shopping_main.html',
             list_form=ShoppingListForm(),
             item_form=ShoppingItemForm(),
             share_form=ShareListForm(),
-            edit_form=edit_form,
-            lists={str(shopping_list['_id']): {
-                'id': str(shopping_list['_id']),
-                'name': shopping_list.get('name'),
-                'budget': format_currency(shopping_list.get('budget', 0.0)),
-                'budget_raw': float(shopping_list.get('budget', 0.0)),
-                'total_spent': format_currency(shopping_list.get('total_spent', 0.0)),
-                'total_spent_raw': float(shopping_list.get('total_spent', 0.0)),
-                'status': shopping_list.get('status', 'active'),
-                'created_at': shopping_list.get('created_at').strftime('%Y-%m-%d') if shopping_list.get('created_at') else 'N/A',
-                'collaborators': shopping_list.get('collaborators', []),
-                'items': [{
-                    'id': str(item['_id']),
-                    'name': item.get('name'),
-                    'quantity': item.get('quantity', 1),
-                    'price': format_currency(item.get('price', 0.0)),
-                    'price_raw': float(item.get('price', 0.0)),
-                    'unit': item.get('unit', 'piece'),
-                    'category': item.get('category', 'other'),
-                    'status': item.get('status', 'to_buy'),
-                    'store': item.get('store', 'Unknown'),
-                    'frequency': item.get('frequency', 7)
-                } for item in db.shopping_items.find({'list_id': str(shopping_list['_id'])})]
-            }},
-            latest_list=None,
-            items=[],
-            categories={},
-            tips=[],
-            insights=[],
+            lists=lists_dict,
+            selected_list=selected_list,
+            items=items,
+            categories=categories,
+            tips=tips,
+            insights=insights,
             tool_title=trans('shopping_title', default='Shopping List Planner'),
-            active_tab='manage-list'
+            active_tab='budget-list'
         )
     except Exception as e:
-        logger.error(f"Error in edit_list for list {list_id}: {str(e)}", 
-                     extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-        flash(trans('shopping_list_error', default='Error loading shopping list for editing.'), 'danger')
-        return redirect(url_for('personal.shopping.main', tab='manage-list'))
+        logger.error(f"Error managing list {list_id}: {str(e)}")
+        flash(trans('shopping_list_error', default='Error loading list.'), 'danger')
+        return redirect(url_for('shopping.main', tab='manage-list'))
 
 @shopping_bp.route('/lists/<list_id>/export_pdf', methods=['GET'])
 @login_required
@@ -857,36 +653,20 @@ def export_list_pdf(list_id):
     db = get_mongo_db()
     try:
         if not ObjectId.is_valid(list_id):
-            logger.error(f"Invalid list_id {list_id}: not a valid ObjectId", 
-                         extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-            flash(trans('shopping_invalid_list_id', default='Invalid list ID format.'), 'danger')
-            return redirect(url_for('personal.shopping.main', tab='dashboard'))
+            flash(trans('shopping_invalid_list_id', default='Invalid list ID.'), 'danger')
+            return redirect(url_for('shopping.main', tab='dashboard'))
         shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), 'user_id': str(current_user.id)})
         if not shopping_list:
-            flash(trans('shopping_list_not_found', default='Shopping list not found or you are not the owner.'), 'danger')
-            return redirect(url_for('personal.shopping.main', tab='dashboard'))
+            flash(trans('shopping_list_not_found', default='List not found.'), 'danger')
+            return redirect(url_for('shopping.main', tab='dashboard'))
         if shopping_list.get('status') != 'saved':
-            flash(trans('shopping_list_not_saved', default='Shopping list must be saved before exporting to PDF.'), 'danger')
-            return redirect(url_for('personal.shopping.main', tab='dashboard'))
-        if current_user.is_authenticated and not is_admin():
+            flash(trans('shopping_list_not_saved', default='List must be saved before exporting.'), 'danger')
+            return redirect(url_for('shopping.main', tab='dashboard'))
+        if not is_admin():
             if not check_ficore_credit_balance(required_amount=0.1, user_id=current_user.id):
-                logger.warning(f"Insufficient Ficore Credits for exporting list {list_id} to PDF by user {current_user.id}", 
-                              extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                flash(trans('shopping_insufficient_credits', default='Insufficient Ficore Credits to export list to PDF. Please purchase more credits.'), 'danger')
+                flash(trans('shopping_insufficient_credits', default='Insufficient credits to export PDF.'), 'danger')
                 return redirect(url_for('dashboard.index'))
-        try:
-            log_tool_usage(
-                tool_name='shopping',
-                db=db,
-                user_id=current_user.id if current_user.is_authenticated else None,
-                session_id=session.get('sid', 'no-session-id'),
-                action='export_shopping_list_pdf'
-            )
-        except Exception as e:
-            logger.error(f"Failed to log PDF export: {str(e)}", 
-                         extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-            flash(trans('shopping_log_error', default='Error logging PDF export. Continuing with export.'), 'warning')
-        items = db.shopping_items.find({'list_id': list_id}).sort('created_at', -1)
+        items = db.shopping_items.find({'list_id': str(list_id)}).sort('created_at', -1)
         shopping_data = {
             'lists': [{
                 'name': shopping_list.get('name'),
@@ -896,15 +676,15 @@ def export_list_pdf(list_id):
                 'created_at': shopping_list.get('created_at')
             }],
             'items': [{
-                'name': i.get('name'),
-                'quantity': i.get('quantity', 1),
-                'price': float(i.get('price', 0)),
-                'unit': i.get('unit', 'piece'),
-                'category': i.get('category', 'other'),
-                'status': i.get('status', 'to_buy'),
-                'store': i.get('store', 'Unknown'),
-                'created_at': i.get('created_at')
-            } for i in items]
+                'name': item.get('name'),
+                'quantity': item.get('quantity', 1),
+                'price': float(item.get('price', 0)),
+                'unit': item.get('unit', 'piece'),
+                'category': item.get('category', 'other'),
+                'status': item.get('status', 'to_buy'),
+                'store': item.get('store', 'Unknown'),
+                'created_at': item.get('created_at')
+            } for item in items]
         }
         with db.client.start_session() as mongo_session:
             with mongo_session.start_transaction():
@@ -992,70 +772,32 @@ def export_list_pdf(list_id):
                     y -= row_height
                     p.drawString(1 * inch, y * inch, f"{trans('reports_total_spent', default='Total Spent')}: {format_currency(total_spent)}")
                     y -= row_height
-                    p.drawString(1 * inch, y * inch, f"{trans('reports_total_price', default='Total Price')}: {format_currency(total_price)}")
+                    p.drawString(1 * inch, y * inch, f'{trans('reports_total_price', default='Total Price')}: {format_currency(total_price)}")
                 p.save()
                 buffer.seek(0)
-                if current_user.is_authenticated and not is_admin():
+                if not is_admin():
                     if not deduct_ficore_credits(db, current_user.id, 0.1, 'export_shopping_list_pdf', list_id, mongo_session):
-                        logger.error(f"Failed to deduct 0.1 Ficore Credits for exporting list {list_id} to PDF by user {current_user.id}", 
-                                     extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                        flash(trans('shopping_credit_deduction_failed', default='Failed to deduct Ficore Credits for exporting list to PDF.'), 'danger')
-                        return redirect(url_for('personal.shopping.main', tab='dashboard'))
-        logger.info(f"Exported shopping list {list_id} to PDF for user {current_user.id}", 
-                    extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
+                        flash(trans('shopping_credit_deduction_failed', default='Failed to deduct credits for PDF export.'), 'danger')
+                        return redirect(url_for('shopping.main', tab='dashboard'))
         return Response(buffer, mimetype='application/pdf', headers={'Content-Disposition': f'attachment;filename=shopping_list_{list_id}.pdf'})
     except Exception as e:
-        logger.error(f"Error exporting list {list_id} to PDF: {str(e)}", 
-                     extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-        flash(trans('shopping_export_error', default='Error exporting shopping list to PDF.'), 'danger')
-        return redirect(url_for('personal.shopping.main', tab='dashboard'))
-
-def process_delayed_deletion(list_id, user_id, session_id):
-    with app.app_context():
-        db = get_mongo_db()
-        try:
-            with db.client.start_session() as mongo_session:
-                with mongo_session.start_transaction():
-                    pending = db.pending_deletions.find_one({'list_id': list_id, 'user_id': str(user_id) if user_id else None}, session=mongo_session)
-                    if not pending:
-                        logger.info(f"No pending deletion found for list {list_id}", 
-                                    extra={'session_id': session_id, 'ip_address': 'unknown'})
-                        return
-                    shopping_list = db.shopping_lists.find_one({'_id': ObjectId(list_id), 'user_id': str(user_id) if user_id else None}, session=mongo_session)
-                    if not shopping_list:
-                        db.pending_deletions.delete_one({'list_id': list_id}, session=mongo_session)
-                        logger.info(f"No shopping list found for {list_id}, removed pending deletion", 
-                                    extra={'session_id': session_id, 'ip_address': 'unknown'})
-                        return
-                    db.shopping_items.delete_many({'list_id': list_id}, session=mongo_session)
-                    result = db.shopping_lists.delete_one({'_id': ObjectId(list_id)}, session=mongo_session)
-                    if result.deleted_count == 0:
-                        logger.error(f"Failed to delete shopping list {list_id}: No documents deleted", 
-                                     extra={'session_id': session_id, 'ip_address': 'unknown'})
-                        raise ValueError(f"Failed to delete shopping list {list_id}")
-                    db.pending_deletions.delete_one({'list_id': list_id}, session=mongo_session)
-            logger.info(f"Completed delayed deletion of shopping list {list_id}", 
-                        extra={'session_id': session_id, 'ip_address': 'unknown'})
-        except Exception as e:
-            logger.error(f"Error in delayed deletion of list {list_id}: {str(e)}", 
-                         extra={'session_id': session_id, 'ip_address': 'unknown'})
+        logger.error(f"Error exporting PDF for list {list_id}: {str(e)}")
+        flash(trans('shopping_export_error', default='Error exporting to PDF.'), 'danger')
+        return redirect(url_for('shopping.main', tab='dashboard'))
 
 @shopping_bp.errorhandler(CSRFError)
 def handle_csrf_error(e):
-    logger.error(f"CSRF error on {request.path}: {e.description}", 
-                 extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-    flash(trans('shopping_csrf_error', default='Form submission failed due to a missing security token. Please refresh and try again.'), 'danger')
-    return redirect(url_for('personal.shopping.main', tab='create-list')), 403
+    logger.error(f"CSRF error on {request.path}: {e.description}")
+    flash(trans('shopping_csrf_error', default='Form submission failed. Please refresh and try again.'), 'danger')
+    return redirect(url_for('shopping.main', tab='create-list')), 404
 
 def init_app(app):
     try:
         db = get_mongo_db()
         db.shopping_lists.create_index([('user_id', 1), ('status', 1), ('updated_at', -1)])
         db.shopping_items.create_index([('list_id', 1), ('created_at', -1)])
-        db.pending_deletions.create_index([('list_id', 1), ('user_id', 1)])
         app.register_blueprint(shopping_bp)
-        logger.info("Initialized shopping blueprint", extra={'session_id': 'no-request-context'})
+        logger.info("Shopping blueprint initialized")
     except Exception as e:
-        logger.error(f"Error initializing shopping blueprint: {str(e)}", 
-                     extra={'session_id': 'no-request-context', 'stack_trace': traceback.format_exc()})
+        logger.error(f"Error initializing shopping blueprint: {str(e)}")
         raise
