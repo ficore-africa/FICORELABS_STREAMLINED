@@ -1,17 +1,14 @@
-# Import necessary modules
 import os
 import sys
 project_root = os.path.dirname(os.path.abspath(__file__))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 import logging
-import uuid
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 from flask import (
     Flask, jsonify, request, render_template, redirect, url_for, flash,
-    make_response, has_request_context, g, send_from_directory, session, Response, current_app, abort
+    make_response, has_request_context, g, send_from_directory, current_app, abort
 )
-from flask_session import Session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash
 from itsdangerous import URLSafeTimedSerializer
@@ -27,16 +24,13 @@ from tax_models import (
     initialize_tax_data, get_payment_locations, to_dict_payment_location
 )
 import utils
-from session_utils import create_anonymous_session
 from translations import register_translation, trans, get_translations, get_all_translations, get_module_translations
 from flask_login import LoginManager, login_required, current_user, UserMixin, logout_user
 from flask_wtf.csrf import CSRFError
 from jinja2.exceptions import TemplateNotFound
-import time
 from pymongo import MongoClient
 import certifi
 from credits.routes import credits_bp
-import re
 from flask_mailman import Mail
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -53,39 +47,36 @@ load_dotenv()
 root_logger = logging.getLogger('ficore_app')
 root_logger.setLevel(logging.INFO)
 
-class SessionFormatter(logging.Formatter):
+class UserFormatter(logging.Formatter):
     def format(self, record):
-        record.session_id = getattr(record, 'session_id', 'no-session-id')
+        record.user_id = getattr(record, 'user_id', 'no-user-id')
         record.user_role = getattr(record, 'user_role', 'anonymous')
         record.ip_address = getattr(record, 'ip_address', 'unknown')
         return super().format(record)
 
-class SessionAdapter(logging.LoggerAdapter):
+class UserAdapter(logging.LoggerAdapter):
     def process(self, msg, kwargs):
         kwargs['extra'] = kwargs.get('extra', {})
-        session_id = 'no-session-id'
+        user_id = 'no-user-id'
         user_role = 'anonymous'
         ip_address = 'unknown'
         try:
             if has_request_context():
-                session_id = session.get('sid', 'no-session-id')
+                user_id = current_user.id if current_user.is_authenticated else 'anonymous'
                 user_role = current_user.role if current_user.is_authenticated else 'anonymous'
                 ip_address = request.remote_addr
-            else:
-                session_id = f'non-request-{str(uuid.uuid4())[:8]}'
         except Exception as e:
-            session_id = f'session-error-{str(uuid.uuid4())[:8]}'
-            kwargs['extra']['session_error'] = str(e)
-        kwargs['extra']['session_id'] = session_id
+            user_id = f'user-error-{str(uuid.uuid4())[:8]}'
+            kwargs['extra']['user_error'] = str(e)
+        kwargs['extra']['user_id'] = user_id
         kwargs['extra']['user_role'] = user_role
         kwargs['extra']['ip_address'] = ip_address
         return msg, kwargs
 
-logger = SessionAdapter(root_logger, {})
+logger = UserAdapter(root_logger, {})
 
 # Initialize extensions
 login_manager = utils.LoginManager()
-flask_session = utils.Session()
 csrf = utils.CSRFProtect()
 babel = utils.Babel()
 compress = utils.Compress()
@@ -105,91 +96,10 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-def custom_login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if current_user.is_authenticated or session.get('is_anonymous', False):
-            return f(*args, **kwargs)
-        logger.info("Redirecting unauthenticated user to login", extra={'ip_address': request.remote_addr})
-        return redirect(url_for('users.login', next=request.url))
-    return decorated_function
-
-def ensure_session_id(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        try:
-            if 'sid' not in session or not session.get('sid'):
-                if not current_user.is_authenticated:
-                    utils.create_anonymous_session()
-                    logger.info(f'New anonymous session created: {session["sid"]}',
-                                extra={'ip_address': request.remote_addr})
-                else:
-                    user_id = getattr(current_user, 'id', 'unknown-user')
-                    session['sid'] = str(uuid.uuid4())
-                    session['is_anonymous'] = False
-                    session.modified = True
-                    logger.info(f'New session ID generated for authenticated user {user_id}: {session["sid"]}',
-                                extra={'ip_address': request.remote_addr})
-            else:
-                # Validate session in MongoDB
-                session_id = session.get('sid')
-                # Ensure current_app.extensions['mongo']['ficodb'] is correctly initialized
-                mongo_session = current_app.extensions['mongo']['ficodb']['sessions'].find_one({'_id': session_id})
-                if not mongo_session and current_user.is_authenticated:
-                    logger.info(f'Invalid or expired session {session_id} for user {current_user.id}, logging out')
-                    logout_user()
-                    session.clear()
-                    session['lang'] = session.get('lang', 'en')
-                    utils.create_anonymous_session()
-                    flash(utils.trans('session_timeout', default='Your session has timed out.'), 'warning')
-
-                    # Clear client-side cookie
-                    response = make_response(redirect(url_for('users.login')))
-                    response.set_cookie(
-                        current_app.config['SESSION_COOKIE_NAME'],
-                        '',
-                        expires=0,
-                        httponly=True,
-                        secure=current_app.config.get('SESSION_COOKIE_SECURE', True)
-                    )
-                    return response
-
-        except Exception as e:
-            logger.error(f'Session operation failed: {str(e)}', exc_info=True)
-            session.clear()
-            session['lang'] = session.get('lang', 'en')
-            utils.create_anonymous_session()
-            flash(utils.trans('session_error', default='An error occurred with your session. Please log in again.'), 'danger')
-            # Clear client-side cookie on error
-            response = make_response(redirect(url_for('users.login')))
-            response.set_cookie(
-                current_app.config['SESSION_COOKIE_NAME'],
-                '',
-                expires=0,
-                httponly=True,
-                secure=current_app.config.get('SESSION_COOKIE_SECURE', True)
-            )
-            return response
-        return f(*args, **kwargs)
-    return decorated_function
-
-def is_safe_referrer(referrer, host):
-    """Check if the referrer is safe (same host or None)."""
-    if not referrer:
-        return False
-    try:
-        from urllib.parse import urlparse
-        parsed_referrer = urlparse(referrer)
-        parsed_host = urlparse(f'http://{host}')
-        return parsed_referrer.netloc == parsed_host.netloc
-    except Exception as e:
-        logger.error(f'Error checking referrer safety: {str(e)}')
-        return False
-
 def setup_logging(app):
     handler = logging.StreamHandler(sys.stderr)
     handler.setLevel(logging.INFO)
-    handler.setFormatter(SessionFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s [session: %(session_id)s, role: %(user_role)s, ip: %(ip_address)s]'))
+    handler.setFormatter(UserFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s [user: %(user_id)s, role: %(user_role)s, ip: %(ip_address)s]'))
     root_logger.handlers = []  # Clear existing handlers
     root_logger.addHandler(handler)
     
@@ -218,49 +128,20 @@ def check_mongodb_connection(app):
         logger.error(f'MongoDB connection failed: {str(e)}', exc_info=True)
         return False
 
-def setup_session(app):
-    try:
-        with app.app_context():
-            max_retries = 3
-            for attempt in range(max_retries):
-                if check_mongodb_connection(app):
-                    app.config['SESSION_TYPE'] = 'mongodb'
-                    app.config['SESSION_MONGODB'] = app.extensions['mongo']
-                    app.config['SESSION_MONGODB_DB'] = 'ficodb'
-                    app.config['SESSION_MONGODB_COLLECT'] = 'sessions'
-                    app.config['SESSION_PERMANENT'] = False
-                    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)
-                    app.config['SESSION_USE_SIGNER'] = True
-                    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-                    app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV', 'development') == 'production'
-                    app.config['SESSION_COOKIE_HTTPONLY'] = True
-                    app.config['SESSION_COOKIE_NAME'] = 'ficore_session'
-                    utils.flask_session.init_app(app)
-                    logger.info(f'Session configured: type={app.config["SESSION_TYPE"]}, db={app.config["SESSION_MONGODB_DB"]}, collection={app.config["SESSION_MONGODB_COLLECT"]}')
-                    return
-                logger.warning(f'MongoDB connection attempt {attempt + 1} failed, retrying...')
-                time.sleep(1)
-            logger.error('MongoDB client is not available after retries, falling back to filesystem session')
-            app.config['SESSION_TYPE'] = 'filesystem'
-            utils.flask_session.init_app(app)
-            logger.info('Session configured with filesystem fallback')
-    except Exception as e:
-        logger.error(f'Failed to configure session: {str(e)}', exc_info=True)
-        app.config['SESSION_TYPE'] = 'filesystem'
-        utils.flask_session.init_app(app)
-        logger.info('Session configured with filesystem fallback due to error')
-
 class User(UserMixin):
     def __init__(self, id, email, display_name=None, role='personal'):
         self.id = id
         self.email = email
         self.display_name = display_name or id
         self.role = role
+        self.lang = 'en'  # Default language
 
     def get(self, key, default=None):
         try:
             with current_app.app_context():
                 user = current_app.extensions['mongo']['ficodb'].users.find_one({'_id': self.id})
+                if user and key == 'lang':
+                    self.lang = user.get('language', 'en')
                 return user.get(key, default) if user else default
         except Exception as e:
             logger.error(f'Error fetching user data for {self.id}: {str(e)}', exc_info=True)
@@ -328,11 +209,11 @@ def create_app():
         if not app.config.get(key):
             logger.warning(f'{key} environment variable not set; some features may be disabled')
 
-    # Initialize MongoDB client with explicit TLS/SSL
+    # Initialize MongoDB client
     try:
         client = MongoClient(
             app.config['MONGO_URI'],
-            serverSelectionTimeoutMS=5000,
+            serverSelectionTimeoutMS=5,
             tls=True,
             tlsCAFile=certifi.where() if os.getenv('MONGO_CA_FILE') is None else os.getenv('MONGO_CA_FILE'),
             maxPoolSize=50,
@@ -386,13 +267,11 @@ def create_app():
             logger.error(f"Error loading user {user_id}: {str(e)}", exc_info=True)
             return None
 
-    # Initialize MongoDB, session, scheduler, and other components within app context
+    # Initialize MongoDB and other components
     try:
         with app.app_context():
             initialize_app_data(app)
             logger.info('Database initialized successfully')
-
-            setup_session(app)
 
             scheduler = init_scheduler(app, app.extensions['mongo']['ficodb'])
             app.config['SCHEDULER'] = scheduler
@@ -418,19 +297,17 @@ def create_app():
             # Initialize tax-related collections
             try:
                 initialize_tax_data(db, trans)
-                logger.info('Tax-related data initialized successfully', extra={'session_id': 'no-session-id'})
+                logger.info('Tax-related data initialized successfully')
             except Exception as e:
                 logger.error(f'Failed to initialize tax-related data: {str(e)}', exc_info=True)
                 raise
             
             try:
                 db.bills.create_index([('user_id', 1), ('due_date', 1)])
-                db.bills.create_index([('session_id', 1), ('due_date', 1)])
                 db.bills.create_index([('created_at', -1)])
                 db.bills.create_index([('due_date', 1)])
                 db.bills.create_index([('status', 1)])
                 db.budgets.create_index([('user_id', 1), ('created_at', -1)])
-                db.budgets.create_index([('session_id', 1), ('created_at', -1)])
                 db.budgets.create_index([('created_at', -1)])
                 db.bill_reminders.create_index([('user_id', 1), ('sent_at', -1)])
                 db.bill_reminders.create_index([('notification_id', 1)])
@@ -569,12 +446,12 @@ def create_app():
     @app.template_filter('format_datetime')
     def format_datetime(value):
         try:
-            locale = session.get('lang', 'en')
-            format_str = '%B %d, %Y, %I:%M %p' if locale == 'en' else '%d %B %Y, %I:%M %p'
+            lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
+            format_str = '%B %d, %Y, %I:%M %p' if lang == 'en' else '%d %B %Y, %I:%M %p'
             if isinstance(value, datetime):
                 return value.strftime(format_str)
             elif isinstance(value, date):
-                return value.strftime('%B %d, %Y' if locale == 'en' else '%d %B %Y')
+                return value.strftime('%B %d, %Y' if lang == 'en' else '%d %B %Y')
             elif isinstance(value, str):
                 parsed = datetime.strptime(value, '%Y-%m-%d')
                 return parsed.strftime(format_str)
@@ -586,8 +463,8 @@ def create_app():
     @app.template_filter('format_date')
     def format_date(value):
         try:
-            locale = session.get('lang', 'en')
-            format_str = '%Y-%m-%d' if locale == 'en' else '%d-%m-%Y'
+            lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
+            format_str = '%Y-%m-%d' if lang == 'en' else '%d-%m-%Y'
             if isinstance(value, datetime):
                 return value.strftime(format_str)
             elif isinstance(value, date):
@@ -602,7 +479,7 @@ def create_app():
     
     @app.template_filter('trans')
     def trans_filter(key, **kwargs):
-        lang = session.get('lang', 'en')
+        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
         translation = utils.trans(key, lang=lang, **kwargs)
         if translation == key:
             logger.warning(f'Missing translation for key="{key}" in lang="{lang}"')
@@ -648,14 +525,14 @@ def create_app():
             explore_features_for_template=explore_features_for_template,
             bottom_nav_items=bottom_nav_items,
             t=trans,
-            lang=session.get('lang', 'en'),
+            lang=getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en',
             format_currency=utils.format_currency,
             format_date=utils.format_date
         )
     
     @app.context_processor
     def inject_globals():
-        lang = session.get('lang', 'en')
+        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
         def context_trans(key, **kwargs):
             used_lang = kwargs.pop('lang', lang)
             return utils.trans(
@@ -704,51 +581,43 @@ def create_app():
         return response
     
     @app.route('/change-language', methods=['POST'])
-    @utils.limiter.limit('10 per minute')
+    @limiter.limit('10 per minute')
     def change_language():
         try:
             data = request.get_json()
             new_lang = data.get('language', 'en')
             supported_languages = app.config.get('SUPPORTED_LANGUAGES', ['en', 'ha'])
-            if new_lang in supported_languages:
-                session['lang'] = new_lang
-                with app.app_context():
-                    if current_user.is_authenticated:
-                        try:
-                            app.extensions['mongo']['ficodb'].users.update_one(
-                                {'_id': current_user.id},
-                                {'$set': {'language': new_lang}}
-                            )
-                        except Exception as e:
-                            logger.warning(f'Could not update user language preference: {str(e)}')
-                
-                logger.info(f'Language changed to {new_lang}', 
-                           extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
-                
-                return jsonify({
-                    'success': True, 
-                    'message': utils.trans('lang_change_success', lang=new_lang)
-                })
-            else:
+            if new_lang not in supported_languages:
                 logger.warning(f'Invalid language requested: {new_lang}')
                 return jsonify({
                     'success': False, 
                     'message': utils.trans('lang_invalid')
                 }), 400
+            if current_user.is_authenticated:
+                try:
+                    app.extensions['mongo']['ficodb'].users.update_one(
+                        {'_id': current_user.id},
+                        {'$set': {'language': new_lang}}
+                    )
+                    current_user.lang = new_lang
+                except Exception as e:
+                    logger.warning(f'Could not update user language preference: {str(e)}')
+            logger.info(f'Language changed to {new_lang}')
+            return jsonify({
+                'success': True, 
+                'message': utils.trans('lang_change_success', lang=new_lang)
+            })
         except Exception as e:
-            logger.error(f'Error changing language: {str(e)}', 
-                        extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
+            logger.error(f'Error changing language: {str(e)}')
             return jsonify({
                 'success': False, 
                 'message': utils.trans('error_general')
             }), 500
     
     @app.route('/', methods=['GET', 'HEAD'])
-    @ensure_session_id
     def index():
-        lang = session.get('lang', 'en')
-        logger.info(f'Serving index page, authenticated: {current_user.is_authenticated}, user: {current_user.username if current_user.is_authenticated and hasattr(current_user, "username") else "None"}', 
-                    extra={'ip_address': request.remote_addr})
+        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
+        logger.info(f'Serving index page, authenticated: {current_user.is_authenticated}, user: {current_user.username if current_user.is_authenticated and hasattr(current_user, "username") else "None"}')
         if request.method == 'HEAD':
             return '', 200
         if current_user.is_authenticated:
@@ -763,19 +632,17 @@ def create_app():
                     return redirect(url_for('general_bp.home'))
             elif current_user.role == 'personal':
                 return redirect(url_for('personal.index'))
-        return redirect(url_for('general_bp.landing'))
+        return render_template('general/landingpage.html', title=utils.trans('home', lang=lang))
     
     @app.route('/general_dashboard')
-    @ensure_session_id
+    @login_required
     def general_dashboard():
-        logger.info(f'Redirecting to unified dashboard for {"authenticated" if current_user.is_authenticated else "anonymous"}', 
-                    extra={'ip_address': request.remote_addr})
+        logger.info(f'Redirecting to unified dashboard for authenticated user {current_user.id}')
         return redirect(url_for('dashboard_bp.index'))
     
     @app.route('/business-agent-home')
-    @ensure_session_id
     def business_agent_home():
-        lang = session.get('lang', 'en')
+        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
         logger.info(f'Serving business-agent home, authenticated: {current_user.is_authenticated}')
         if current_user.is_authenticated:
             if current_user.role == 'agent':
@@ -801,7 +668,7 @@ def create_app():
             ), 404
     
     @app.route('/health')
-    @utils.limiter.limit('10 per minute')
+    @limiter.limit('10 per minute')
     def health():
         logger.info('Performing health check')
         status = {'status': 'healthy'}
@@ -816,7 +683,7 @@ def create_app():
             return jsonify(status), 500
     
     @app.route('/api/translations/<lang>')
-    @utils.limiter.limit('10 per minute')
+    @limiter.limit('10 per minute')
     def get_translations_api(lang):
         try:
             supported_languages = app.config.get('SUPPORTED_LANGUAGES', ['en', 'ha'])
@@ -835,11 +702,11 @@ def create_app():
             return jsonify({'error': utils.trans('error')}), 500
     
     @app.route('/api/translate')
-    @utils.limiter.limit('10 per minute')
+    @limiter.limit('10 per minute')
     def api_translate():
         try:
             key = request.args.get('key')
-            lang = request.args.get('lang', session.get('lang', 'en'))
+            lang = request.args.get('lang', getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en')
             supported_languages = app.config.get('SUPPORTED_LANGUAGES', ['en', 'ha'])
             if not key:
                 return jsonify({'error': utils.trans('missing_key')}), 400
@@ -853,48 +720,36 @@ def create_app():
             return jsonify({'error': utils.trans('error')}), 500
     
     @app.route('/set_language/<lang>')
-    @utils.limiter.limit('10 per minute')
+    @limiter.limit('10 per minute')
     def set_language(lang):
         supported_languages = current_app.config.get('SUPPORTED_LANGUAGES', ['en', 'ha'])
         new_lang = lang if lang in supported_languages else 'en'
-        
         try:
-            session['lang'] = new_lang
             if current_user.is_authenticated:
                 try:
                     current_app.extensions['mongo']['ficodb'].users.update_one(
                         {'_id': current_user.id},
                         {'$set': {'language': new_lang}}
                     )
+                    current_user.lang = new_lang
                 except Exception as e:
-                    logger.warning(
-                        f'Could not update user language for user {current_user.id}: {str(e)}',
-                        extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr}
-                    )
+                    logger.warning(f'Could not update user language for user {current_user.id}: {str(e)}')
                     flash(utils.trans('invalid_lang', default='Could not update language'), 'danger')
                     return redirect(url_for('index'))
-                    
-            logger.info(
-                f'Set language to {new_lang} for user {current_user.id if current_user.is_authenticated else "anonymous"}',
-                extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr}
-            )
+            logger.info(f'Set language to {new_lang} for user {current_user.id if current_user.is_authenticated else "anonymous"}')
             flash(utils.trans('lang_updated', default='Language updated successfully'), 'success')
-            
-            redirect_url = request.referrer if is_safe_referrer(request.referrer, request.host) else url_for('index')
+            redirect_url = request.referrer if utils.is_safe_referrer(request.referrer, request.host) else url_for('index')
             return redirect(redirect_url)
         except Exception as e:
-            logger.error(
-                f'Session error: {str(e)}',
-                extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr}
-            )
+            logger.error(f'Error setting language: {str(e)}')
             flash(utils.trans('invalid_lang', default='Could not update language'), 'danger')
             return redirect(url_for('index'))
     
     @app.route('/setup', methods=['GET'])
-    @utils.limiter.limit('10 per minute')
+    @limiter.limit('10 per minute')
     def setup_database_route():
         setup_key = request.args.get('key')
-        lang = session.get('lang', 'en')
+        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
         if not app.config.get('SETUP_KEY') or setup_key != app.config['SETUP_KEY']:
             logger.warning(f'Invalid setup key: {setup_key}')
             try:
@@ -997,6 +852,7 @@ def create_app():
     
     @app.route('/manifest.json')
     def manifest():
+        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
         manifest_data = {
             "name": "FiCore App",
             "short_name": "FiCore",
@@ -1017,7 +873,7 @@ def create_app():
                     "type": "image/png"
                 }
             ],
-            "lang": session.get('lang', 'en'),
+            "lang": lang,
             "dir": "ltr",
             "orientation": "portrait",
             "scope": "/",
@@ -1029,106 +885,55 @@ def create_app():
     @app.errorhandler(CSRFError)
     def handle_csrf_error(e):
         logger.error(f'CSRF error: {str(e)}')
+        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
         try:
             return render_template(
                 'error/403.html', 
                 error=utils.trans('csrf_error'), 
-                title=utils.trans('csrf_error', lang=session.get('lang', 'en'))
+                title=utils.trans('csrf_error', lang=lang)
             ), 400
         except TemplateNotFound:
             return render_template(
                 'personal/GENERAL/error.html', 
                 error=utils.trans('csrf_error'), 
-                title=utils.trans('csrf_error', lang=session.get('lang', 'en'))
+                title=utils.trans('csrf_error', lang=lang)
             ), 400
 
     @app.errorhandler(404)
     def page_not_found(e):
         logger.error(f'Not found: {request.url}')
+        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
         try:
             return render_template(
                 'personal/GENERAL/404.html', 
                 error=str(e), 
-                title=utils.trans('not_found', lang=session.get('lang', 'en'))
+                title=utils.trans('not_found', lang=lang)
             ), 404
         except TemplateNotFound:
             return render_template(
                 'personal/GENERAL/error.html', 
                 error=str(e), 
-                title=utils.trans('not_found', lang=session.get('lang', 'en'))
+                title=utils.trans('not_found', lang=lang)
             ), 404
 
     @app.errorhandler(500)
     def internal_server_error(e):
         logger.error(f'Server error: {str(e)}')
+        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
         try:
             return render_template(
                 'personal/GENERAL/error.html', 
                 error=str(e), 
-                title=utils.trans('server_error', lang=session.get('lang', 'en'))
+                title=utils.trans('server_error', lang=lang)
             ), 500
         except TemplateNotFound:
             return render_template(
                 'personal/GENERAL/error.html', 
                 error=str(e), 
-                title=utils.trans('server_error', lang=session.get('lang', 'en'))
+                title=utils.trans('server_error', lang=lang)
             ), 500
-    
-    @app.before_request
-    def check_session_timeout():
-        # Skip session timeout check for static routes to avoid unnecessary processing
-        if request.path.startswith('/static/') or request.path in ['/favicon.ico', '/manifest.json', '/service-worker.js']:
-            return
-
-        if current_user.is_authenticated and 'last_activity' in session:
-            last_activity = session.get('last_activity')
-            timeout_minutes = 30  # Adjust as needed
-
-            # Convert last_activity to datetime if it's a string
-            if isinstance(last_activity, str):
-                try:
-                    last_activity = datetime.fromisoformat(last_activity.replace(' ', 'T'))  # Handle space-separated datetime strings
-                except ValueError:
-                    logger.warning(f"Invalid last_activity format: {last_activity}, resetting to now")
-                    last_activity = datetime.utcnow()
-                    session['last_activity'] = last_activity
-
-            # Check if session has timed out
-            if (datetime.utcnow() - last_activity).total_seconds() > timeout_minutes * 60:
-                user_id = current_user.id
-                sid = session.get('sid', 'no-session-id')
-                logger.info(f"Session timeout for user {user_id}, logging out")
-                logout_user()
-                # Delete MongoDB session
-                if current_app.config.get('SESSION_TYPE') == 'mongodb':
-                    try:
-                        db = current_app.extensions['mongo']['ficodb']
-                        db.sessions.delete_one({'_id': sid})
-                        logger.info(f"Deleted MongoDB session for user {user_id}, SID: {sid}")
-                    except Exception as e:
-                        logger.error(f"Failed to delete MongoDB session for SID {sid}: {str(e)}")
-                # Clear session and create new anonymous session
-                session.clear()
-                session['lang'] = session.get('lang', 'en')
-                utils.create_anonymous_session()
-                logger.info(f"New anonymous session created after timeout: {session['sid']}")
-                flash(utils.trans('session_timeout', default='Your session has timed out.'), 'warning')
-                response = make_response(redirect(url_for('users.login')))
-                response.set_cookie(
-                    current_app.config['SESSION_COOKIE_NAME'],
-                    '',
-                    expires=0,
-                    httponly=True,
-                    secure=current_app.config.get('SESSION_COOKIE_SECURE', True)
-                )
-                return response
-
-        # Update last_activity for authenticated users or initialize for new sessions
-        if current_user.is_authenticated:
-            session['last_activity'] = datetime.utcnow()
 
     scheduler_shutdown_done = False
-    mongo_client_closed = False
 
     @app.teardown_appcontext
     def cleanup_scheduler(exception):
