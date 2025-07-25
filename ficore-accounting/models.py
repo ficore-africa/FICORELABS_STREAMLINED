@@ -1170,7 +1170,7 @@ def create_agent(db, agent_data: dict) -> str:
     try:
         validated_data = agent_data(**AgentData).dict(exclude_unset=True)
         agent_doc = {
-            '_id': validated_data['agent_id').upper(),
+            '_id': validated_data['agent_id').upper()],
             'email': validated_data['email').lower()],
             'status': validated_data.get('status'),
             'created_at': validated_data.get('created_at', datetime.utcnow()),
