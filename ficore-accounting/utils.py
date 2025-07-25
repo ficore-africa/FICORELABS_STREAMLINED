@@ -279,6 +279,57 @@ _BUSINESS_TOOLS = [
     },
 ]
 
+_BUSINESS_EXPLORE_FEATURES = [ 
+    {
+        "endpoint": "debtors.index",
+        "label": "They Owe",
+        "label_key": "debtors_dashboard",
+        "description_key": "debtors_dashboard_desc",
+        "tooltip_key": "debtors_tooltip",
+        "icon": "bi-person-plus"
+    },
+    {
+        "endpoint": "creditors.index",
+        "label": "I Owe",
+        "label_key": "creditors_dashboard",
+        "description_key": "creditors_dashboard_desc",
+        "tooltip_key": "creditors_tooltip",
+        "icon": "bi-arrow-up-circle"
+    },    
+    {
+        "endpoint": "receipts.index",
+        "label": "MoneyIn",
+        "label_key": "receipts_dashboard",
+        "description_key": "receipts_dashboard",
+        "tooltip_key": "receipts_tooltip",
+        "icon": "bi-cash-coin"
+    },    
+    {
+        "endpoint": "payments.index",
+        "label": "MoneyOut",
+        "label_key": "payments_dashboard",
+        "description_key": "payments_dashboard",
+        "tooltip_key": "payments_tooltip",
+        "icon": "bi-calculator"
+    }, 
+    {
+        "endpoint": "credits.history",
+        "label": "Ficore Credits",
+        "label_key": "credits_your_wallet",
+        "description_key": "credits_your_wallet_desc",
+        "tooltip_key": "credits_your_wallet_tooltip",
+        "icon": "bi-coin"
+    },    
+    {
+        "endpoint": "reports.index",
+        "label": "Reports",
+        "label_key": "business_reports",
+        "description_key": "business_reports_desc",
+        "tooltip_key": "business_reports_tooltip",
+        "icon": "bi-journal-minus"
+    },
+]
+
 _BUSINESS_NAV = [
     {
         "endpoint": "general_bp.home",
