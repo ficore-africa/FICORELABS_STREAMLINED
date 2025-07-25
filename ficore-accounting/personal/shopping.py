@@ -212,7 +212,7 @@ class ShareListForm(FlaskForm):
 def landing():
     if current_user.is_authenticated:
         return redirect(url_for('shopping.main'))
-    return render_template('personal/SHOPPING/landing.html', tool_title=trans('shopping_title', default='Shopping List Planner'))
+    return render_template('general/landingpage.html', tool_title=trans('shopping_title', default='Shopping List Planner'))
 
 @shopping_bp.route('/main', methods=['GET', 'POST'])
 @login_required
