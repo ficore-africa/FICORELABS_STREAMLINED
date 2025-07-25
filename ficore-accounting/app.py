@@ -20,8 +20,7 @@ from functools import wraps
 from mailersend_email import init_email_config
 from scheduler_setup import init_scheduler
 from models import (
-    create_user, get_user_by_email, get_user, get_budgets, get_bills,
-    to_dict_budget, to_dict_bill, initialize_app_data
+    create_user, get_user_by_email, get_user, get_budgets, get_bills, initialize_app_data
 )
 from tax_models import (
     initialize_tax_data, get_payment_locations, to_dict_payment_location
