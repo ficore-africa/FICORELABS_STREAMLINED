@@ -1,8 +1,6 @@
-from flask import Blueprint, jsonify, current_app, redirect, url_for, flash, render_template, request, session, make_response
+from flask import Blueprint, jsonify, current_app, redirect, url_for, flash, render_template, request, make_response
 from flask_login import current_user, login_required
-from utils import requires_role, is_admin, get_mongo_db, limiter, PERSONAL_TOOLS, PERSONAL_EXPLORE_FEATURES
-import utils
-from translations import trans
+from utils import requires_role, is_admin, get_mongo_db, limiter, PERSONAL_TOOLS, PERSONAL_EXPLORE_FEATURES, trans_function, validate_user_id, is_valid_email
 import logging
 
 # Configure logging
@@ -22,25 +20,52 @@ personal_bp.register_blueprint(summaries_bp)
 personal_bp.register_blueprint(shopping_bp)
 
 def init_app(app):
-    """Initialize all personal finance sub-blueprints."""
+    """Initialize all personal finance sub-blueprints.
+    
+    Args:
+        app: Flask application instance
+    """
     try:
-        for blueprint in [bill_bp, budget_bp, summaries_bp, shopping_bp, food_order_bp]:
+        for blueprint in [bill_bp, budget_bp, summaries_bp, shopping_bp]:
             if hasattr(blueprint, 'init_app'):
                 blueprint.init_app(app)
-                current_app.logger.info(f"Initialized {blueprint.name} blueprint", extra={'session_id': 'no-request-context'})
-        current_app.logger.info("Personal finance blueprints initialized successfully", extra={'session_id': 'no-request-context'})
+                current_app.logger.info(
+                    f"Initialized {blueprint.name} blueprint",
+                    extra={'user_id': 'no-request-context', 'email': 'no-request-context', 'ip_address': 'unknown'}
+                )
+        current_app.logger.info(
+            "Personal finance blueprints initialized successfully",
+            extra={'user_id': 'no-request-context', 'email': 'no-request-context', 'ip_address': 'unknown'}
+        )
     except Exception as e:
-        current_app.logger.error(f"Error initializing personal finance blueprints: {str(e)}", extra={'session_id': 'no-request-context'})
+        current_app.logger.error(
+            f"Error initializing personal finance blueprints: {str(e)}",
+            extra={'user_id': 'no-request-context', 'email': 'no-request-context', 'ip_address': 'unknown'}
+        )
         raise
 
 @personal_bp.route('/')
 @login_required
 @requires_role(['personal', 'admin'])
 def index():
-    """Render the personal finance dashboard."""
+    """Render the personal finance dashboard.
+    
+    Returns:
+        Response: Rendered template or error page
+    """
     try:
-        current_app.logger.info(f"Accessing personal.index - User: {current_user.id}, Authenticated: {current_user.is_authenticated}, Session: {dict(session)}")
-        
+        user_id = current_user.id if current_user.is_authenticated else None
+        email = current_user.email if current_user.is_authenticated else None
+
+        if not validate_user_id(user_id) or not is_valid_email(email):
+            flash(trans_function('invalid_identity', default='Invalid user identity.', user_id=user_id, email=email), 'danger')
+            return redirect(url_for('users.login'))
+
+        current_app.logger.info(
+            f"Accessing personal.index - User: {user_id}/{email}, Authenticated: {current_user.is_authenticated}",
+            extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr}
+        )
+
         # Define PERSONAL_TOOLS with dynamic URLs
         hardcoded_tools = [
             {
@@ -52,7 +77,6 @@ def index():
                 "icon": "bi-cart",
                 "url": url_for("personal.shopping.main", _external=True)
             },
-
         ]
 
         # Define PERSONAL_EXPLORE_FEATURES with dynamic URLs
@@ -115,7 +139,7 @@ def index():
 
         response = make_response(render_template(
             'personal/GENERAL/index.html',
-            title=trans('general_welcome', lang=session.get('lang', 'en'), default='Welcome'),
+            title=trans_function('general_welcome', default='Welcome', user_id=user_id, email=email),
             tools_for_template=hardcoded_tools,
             explore_features_for_template=hardcoded_features,
             is_admin=is_admin(),
@@ -127,12 +151,15 @@ def index():
         response.headers['Expires'] = '0'
         return response
     except Exception as e:
-        current_app.logger.error(f"Error rendering personal index: {str(e)}", extra={'session_id': session.get('sid', 'unknown')})
-        flash(trans('general_error', default='An error occurred'), 'danger')
+        current_app.logger.error(
+            f"Error rendering personal index: {str(e)}",
+            extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+        )
+        flash(trans_function('general_error', default='An error occurred', user_id=user_id, email=email), 'danger')
         response = make_response(render_template(
             'personal/GENERAL/error.html',
             error_message="Unable to load the personal finance dashboard due to an internal error.",
-            title=trans('general_welcome', lang=session.get('lang', 'en'), default='Welcome'),
+            title=trans_function('general_welcome', default='Welcome', user_id=user_id, email=email),
             is_admin=is_admin()
         ), 500)
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
