@@ -2,14 +2,14 @@ from flask import Blueprint, request, redirect, url_for, render_template, flash,
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect, CSRFError
 from wtforms import StringField, DecimalField, SelectField, BooleanField, IntegerField, DateField
-from wtforms.validators import DataRequired, NumberRange, Optional, ValidationError
+from wtforms.validators import DataRequired, NumberRange, Optional
 from flask_login import current_user, login_required
 from mailersend_email import send_email, EMAIL_CONFIG
 from datetime import datetime, date, timedelta
 from translations import trans
 from pymongo.errors import DuplicateKeyError
 from bson import ObjectId
-from utils import get_all_recent_activities, requires_role, is_admin, get_mongo_db, limiter, log_tool_usage, check_ficore_credit_balance
+from utils import get_mongo_db, limiter, log_tool_usage, check_ficore_credit_balance
 from decimal import Decimal, InvalidOperation
 import re
 
@@ -161,10 +161,10 @@ def format_currency(value):
         else:
             numeric_value = float(value)
         formatted = f"{numeric_value:,.2f}"
-        current_app.logger.debug(f"Formatted value: input={value}, output={formatted}", extra={'user_id': current_user.id})
+        current_app.logger.debug(f"Formatted value: input={value}, output={formatted}", extra={'user_id': current_user.id, 'email': current_user.email})
         return formatted
     except (ValueError, TypeError, InvalidOperation) as e:
-        current_app.logger.warning(f"Format Error: input={value}, error={str(e)}", extra={'user_id': current_user.id})
+        current_app.logger.warning(f"Format Error: input={value}, error={str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
         return "0.00"
 
 def calculate_next_due_date(due_date, frequency):
@@ -177,38 +177,39 @@ def calculate_next_due_date(due_date, frequency):
         return due_date + timedelta(days=90)
     return due_date
 
-def deduct_ficore_credits(db, user_id, amount, action, bill_id=None):
+def deduct_ficore_credits(db, user_id, email, amount, action, bill_id=None):
     """Deduct Ficore Credits from user balance and log the transaction."""
     try:
-        user = db.users.find_one({'_id': user_id})
+        user = db.users.find_one({'_id': user_id, 'email': email.lower()})
         if not user:
-            current_app.logger.error(f"User {user_id} not found for credit deduction", extra={'user_id': user_id})
+            current_app.logger.error(f"User {user_id} with email {email} not found for credit deduction", extra={'user_id': user_id, 'email': email})
             return False
         current_balance = user.get('ficore_credit_balance', 0)
         if current_balance < amount:
-            current_app.logger.warning(f"Insufficient credits for user {user_id}: required {amount}, available {current_balance}", extra={'user_id': user_id})
+            current_app.logger.warning(f"Insufficient credits for user {user_id} with email {email}: required {amount}, available {current_balance}", extra={'user_id': user_id, 'email': email})
             return False
         result = db.users.update_one(
-            {'_id': user_id},
+            {'_id': user_id, 'email': email.lower()},
             {'$inc': {'ficore_credit_balance': -amount}}
         )
         if result.modified_count == 0:
-            current_app.logger.error(f"Failed to deduct {amount} credits for user {user_id}", extra={'user_id': user_id})
+            current_app.logger.error(f"Failed to deduct {amount} credits for user {user_id} with email {email}", extra={'user_id': user_id, 'email': email})
             return False
         transaction = {
             '_id': ObjectId(),
             'user_id': user_id,
+            'email': email.lower(),
             'action': action,
             'amount': -amount,
             'bill_id': str(bill_id) if bill_id else None,
-            'timestamp': datetime.utcnow(),
+            'date': datetime.utcnow(),
             'status': 'completed'
         }
         db.ficore_credit_transactions.insert_one(transaction)
-        current_app.logger.info(f"Deducted {amount} Ficore Credits for {action} by user {user_id}", extra={'user_id': user_id})
+        current_app.logger.info(f"Deducted {amount} Ficore Credits for {action} by user {user_id} with email {email}", extra={'user_id': user_id, 'email': email})
         return True
     except Exception as e:
-        current_app.logger.error(f"Error deducting {amount} Ficore Credits for {action} by user {user_id}: {str(e)}", extra={'user_id': user_id})
+        current_app.logger.error(f"Error deducting {amount} Ficore Credits for {action} by user {user_id} with email {email}: {str(e)}", extra={'user_id': user_id, 'email': email})
         return False
 
 class BillForm(FlaskForm):
@@ -289,7 +290,7 @@ class BillForm(FlaskForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
+        lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
         self.bill_name.label.text = trans('bill_bill_name', lang) or 'Bill Name'
         self.amount.label.text = trans('bill_amount', lang) or 'Amount'
         self.due_date.label.text = trans('bill_due_date', lang) or 'Due Date'
@@ -378,7 +379,7 @@ class EditBillForm(FlaskForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
+        lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
         self.amount.label.text = trans('bill_amount', lang) or 'Amount'
         self.frequency.label.text = trans('bill_frequency', lang) or 'Frequency'
         self.category.label.text = trans('general_category', lang) or 'Category'
@@ -403,7 +404,6 @@ def landing():
 
 @bill_bp.route('/main', methods=['GET', 'POST'])
 @login_required
-@requires_role(['personal', 'admin'])
 @limiter.limit("10 per minute")
 def main():
     """Main bill management interface with tabbed layout."""
@@ -419,21 +419,24 @@ def main():
             tool_name='bill',
             db=db,
             user_id=current_user.id,
+            email=current_user.email,
             action='main_view'
         )
     except Exception as e:
-        current_app.logger.error(f"Failed to log tool usage: {str(e)}", extra={'user_id': current_user.id})
+        current_app.logger.error(f"Failed to log tool usage: {str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
         flash(trans('bill_log_error', default='Error logging bill activity. Please try again.'), 'warning')
 
     try:
+        # Assuming get_all_recent_activities uses both user_id and email
         activities = get_all_recent_activities(
             db=db,
             user_id=current_user.id,
+            email=current_user.email,
             limit=10
         )
-        current_app.logger.debug(f"Fetched {len(activities)} recent activities for user {current_user.id}", extra={'user_id': current_user.id})
+        current_app.logger.debug(f"Fetched {len(activities)} recent activities for user {current_user.id} with email {current_user.email}", extra={'user_id': current_user.id, 'email': current_user.email})
     except Exception as e:
-        current_app.logger.error(f"Failed to fetch recent activities: {str(e)}", extra={'user_id': current_user.id})
+        current_app.logger.error(f"Failed to fetch recent activities: {str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
         flash(trans('bill_activities_load_error', default='Error loading recent activities.'), 'warning')
         activities = []
 
@@ -447,14 +450,14 @@ def main():
     insights = []
 
     try:
-        filter_kwargs = {} if is_admin() else {'user_id': current_user.id}
+        filter_kwargs = {'user_id': current_user.id, 'email': current_user.email.lower()}
         bills_collection = db.bills
         if request.method == 'POST':
             action = request.form.get('action')
             if action == 'add_bill':
-                if not is_admin():
-                    if not check_ficore_credit_balance(required_amount=1, user_id=current_user.id):
-                        current_app.logger.warning(f"Insufficient Ficore Credits for adding bill by user {current_user.id}", extra={'user_id': current_user.id})
+                if not current_user.is_admin:
+                    if not check_ficore_credit_balance(required_amount=1, user_id=current_user.id, email=current_user.email):
+                        current_app.logger.warning(f"Insufficient Ficore Credits for adding bill by user {current_user.id} with email {current_user.email}", extra={'user_id': current_user.id, 'email': current_user.email})
                         flash(trans('bill_insufficient_credits', default='Insufficient Ficore Credits to add a bill. Please purchase more credits.'), 'danger')
                         return redirect(url_for('dashboard.index'))
                 try:
@@ -474,17 +477,19 @@ def main():
                             tool_name='bill',
                             db=db,
                             user_id=current_user.id,
+                            email=current_user.email,
                             action='add_bill'
                         )
                         bill_id = ObjectId()
                         bill_data = {
                             '_id': bill_id,
                             'user_id': current_user.id,
-                            'user_email': current_user.email,
-                            'first_name': current_user.get_first_name(),
+                            'email': current_user.email.lower(),
+                            'user_email': current_user.email.lower(),
+                            'first_name': current_user.display_name,
                             'bill_name': cleaned_data['bill_name'],
                             'amount': float(cleaned_data['amount']),
-                            'due_date': cleaned_data['due_date'].isoformat(),
+                            'due_date': cleaned_data['due_date'],
                             'frequency': cleaned_data['frequency'],
                             'category': cleaned_data['category'],
                             'status': cleaned_data['status'],
@@ -492,14 +497,14 @@ def main():
                             'reminder_days': cleaned_data['reminder_days'],
                             'created_at': datetime.utcnow()
                         }
-                        bills_collection.insert_one(bill_data)
-                        if not is_admin():
-                            if not deduct_ficore_credits(db, current_user.id, 1, 'add_bill', bill_id):
-                                bills_collection.delete_one({'_id': bill_id})
-                                current_app.logger.error(f"Failed to deduct Ficore Credit for adding bill {bill_id} by user {current_user.id}", extra={'user_id': current_user.id})
+                        create_bill(db, bill_data)
+                        if not current_user.is_admin:
+                            if not deduct_ficore_credits(db, current_user.id, current_user.email, 1, 'add_bill', bill_id):
+                                bills_collection.delete_one({'_id': bill_id, 'user_id': current_user.id, 'email': current_user.email.lower()})
+                                current_app.logger.error(f"Failed to deduct Ficore Credit for adding bill {bill_id} by user {current_user.id} with email {current_user.email}", extra={'user_id': current_user.id, 'email': current_user.email})
                                 flash(trans('bill_credit_deduction_failed', default='Failed to deduct Ficore Credit for adding bill.'), 'danger')
                                 return redirect(url_for('bill.main', tab='add-bill'))
-                        current_app.logger.info(f"Bill {bill_id} added successfully for user {bill_data['user_email']}", extra={'user_id': current_user.id})
+                        current_app.logger.info(f"Bill {bill_id} added successfully for user {current_user.id} with email {current_user.email}", extra={'user_id': current_user.id, 'email': current_user.email})
                         flash(trans('bill_added_success', default='Bill added successfully!'), 'success')
                         if cleaned_data['send_email'] and bill_data['user_email']:
                             try:
@@ -516,18 +521,18 @@ def main():
                                         'bills': [{
                                             'bill_name': bill_data['bill_name'],
                                             'amount': format_currency(bill_data['amount']),
-                                            'due_date': bill_data['due_date'],
+                                            'due_date': bill_data['due_date'].strftime('%Y-%m-%d'),
                                             'category': bill_data['category'],
                                             'status': bill_data['status']
                                         }],
                                         'cta_url': url_for('bill.main', _external=True),
                                         'unsubscribe_url': url_for('bill.unsubscribe', _external=True)
                                     },
-                                    lang=getattr(current_user, 'lang', 'en')
+                                    lang=getattr(current_user, 'language', 'en')
                                 )
-                                current_app.logger.info(f"Email sent to {bill_data['user_email']}", extra={'user_id': current_user.id})
+                                current_app.logger.info(f"Email sent to {bill_data['user_email']}", extra={'user_id': current_user.id, 'email': current_user.email})
                             except Exception as e:
-                                current_app.logger.error(f"Failed to send email: {str(e)}", extra={'user_id': current_user.id})
+                                current_app.logger.error(f"Failed to send email: {str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
                                 flash(trans('general_email_send_failed', default='Failed to send email.'), 'warning')
                         if cleaned_data['amount'] > 100000:
                             insights.append(trans('bill_insight_large_amount', default='Large bill amount detected. Consider reviewing for accuracy or splitting payments.'))
@@ -538,27 +543,27 @@ def main():
                                 flash(trans(error, default=error), 'danger')
                         return redirect(url_for('bill.main', tab='add-bill'))
                 except ValueError as e:
-                    current_app.logger.error(f"Form validation error: {str(e)}", extra={'user_id': current_user.id})
+                    current_app.logger.error(f"Form validation error: {str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
                     flash(str(e), 'danger')
                     return redirect(url_for('bill.main', tab='add-bill'))
                 except DuplicateKeyError:
-                    current_app.logger.error(f"Duplicate bill error for user {current_user.id}", extra={'user_id': current_user.id})
+                    current_app.logger.error(f"Duplicate bill error for user {current_user.id} with email {current_user.email}", extra={'user_id': current_user.id, 'email': current_user.email})
                     flash(trans('bill_duplicate_error', default='A bill with this name already exists.'), 'danger')
                     return redirect(url_for('bill.main', tab='add-bill'))
                 except Exception as e:
-                    current_app.logger.error(f"Failed to save bill to MongoDB: {str(e)}", extra={'user_id': current_user.id})
+                    current_app.logger.error(f"Failed to save bill to MongoDB: {str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
                     flash(trans('bill_storage_error', default='Error saving bill.'), 'danger')
                     return redirect(url_for('bill.main', tab='add-bill'))
             elif action in ['update_bill', 'delete_bill', 'toggle_status']:
                 bill_id = request.form.get('bill_id')
-                bill = bills_collection.find_one({'_id': ObjectId(bill_id), **filter_kwargs})
+                bill = bills_collection.find_one({'_id': ObjectId(bill_id), 'user_id': current_user.id, 'email': current_user.email.lower()})
                 if not bill:
-                    current_app.logger.warning(f"Bill {bill_id} not found for update/delete/toggle", extra={'user_id': current_user.id})
+                    current_app.logger.warning(f"Bill {bill_id} not found for update/delete/toggle for user {current_user.id} with email {current_user.email}", extra={'user_id': current_user.id, 'email': current_user.email})
                     flash(trans('bill_not_found', default='Bill not found.'), 'danger')
                     return redirect(url_for('bill.main', tab='manage-bills'))
-                if not is_admin():
-                    if not check_ficore_credit_balance(required_amount=1, user_id=current_user.id):
-                        current_app.logger.warning(f"Insufficient Ficore Credits for {action} on bill {bill_id} by user {current_user.id}", extra={'user_id': current_user.id})
+                if not current_user.is_admin:
+                    if not check_ficore_credit_balance(required_amount=1, user_id=current_user.id, email=current_user.email):
+                        current_app.logger.warning(f"Insufficient Ficore Credits for {action} on bill {bill_id} by user {current_user.id} with email {current_user.email}", extra={'user_id': current_user.id, 'email': current_user.email})
                         flash(trans('bill_insufficient_credits', default='Insufficient Ficore Credits to perform this action. Please purchase more credits.'), 'danger')
                         return redirect(url_for('dashboard.index'))
                 if action == 'update_bill':
@@ -585,13 +590,13 @@ def main():
                                 'reminder_days': cleaned_data['reminder_days'],
                                 'updated_at': datetime.utcnow()
                             }
-                            bills_collection.update_one({'_id': ObjectId(bill_id), **filter_kwargs}, {'$set': update_data})
-                            if not is_admin():
-                                if not deduct_ficore_credits(db, current_user.id, 1, 'update_bill', bill_id):
-                                    current_app.logger.error(f"Failed to deduct Ficore Credit for updating bill {bill_id} by user {current_user.id}", extra={'user_id': current_user.id})
+                            update_bill(db, bill_id, current_user.id, current_user.email, update_data)
+                            if not current_user.is_admin:
+                                if not deduct_ficore_credits(db, current_user.id, current_user.email, 1, 'update_bill', bill_id):
+                                    current_app.logger.error(f"Failed to deduct Ficore Credit for updating bill {bill_id} by user {current_user.id} with email {current_user.email}", extra={'user_id': current_user.id, 'email': current_user.email})
                                     flash(trans('bill_credit_deduction_failed', default='Failed to deduct Ficore Credit for updating bill.'), 'danger')
                                     return redirect(url_for('bill.main', tab='manage-bills'))
-                            current_app.logger.info(f"Bill {bill_id} updated successfully", extra={'user_id': current_user.id})
+                            current_app.logger.info(f"Bill {bill_id} updated successfully for user {current_user.id} with email {current_user.email}", extra={'user_id': current_user.id, 'email': current_user.email})
                             flash(trans('bill_updated_success', default='Bill updated successfully!'), 'success')
                             if cleaned_data['amount'] > 100000:
                                 insights.append(trans('bill_insight_large_amount', default='Large bill amount detected. Consider reviewing for accuracy or splitting payments.'))
@@ -601,11 +606,11 @@ def main():
                                     flash(trans(error, default=error), 'danger')
                             return redirect(url_for('bill.main', tab='manage-bills'))
                     except ValueError as e:
-                        current_app.logger.error(f"Form validation error: {str(e)}", extra={'user_id': current_user.id})
+                        current_app.logger.error(f"Form validation error: {str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
                         flash(str(e), 'danger')
                         return redirect(url_for('bill.main', tab='manage-bills'))
                     except Exception as e:
-                        current_app.logger.error(f"Failed to update bill {bill_id}: {str(e)}", extra={'user_id': current_user.id})
+                        current_app.logger.error(f"Failed to update bill {bill_id}: {str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
                         flash(trans('bill_update_failed', default='Failed to update bill.'), 'danger')
                     return redirect(url_for('bill.main', tab='manage-bills'))
                 elif action == 'delete_bill':
@@ -614,18 +619,19 @@ def main():
                             tool_name='bill',
                             db=db,
                             user_id=current_user.id,
+                            email=current_user.email,
                             action='delete_bill'
                         )
-                        bills_collection.delete_one({'_id': ObjectId(bill_id), **filter_kwargs})
-                        if not is_admin():
-                            if not deduct_ficore_credits(db, current_user.id, 1, 'delete_bill', bill_id):
-                                current_app.logger.error(f"Failed to deduct Ficore Credit for deleting bill {bill_id} by user {current_user.id}", extra={'user_id': current_user.id})
+                        bills_collection.delete_one({'_id': ObjectId(bill_id), 'user_id': current_user.id, 'email': current_user.email.lower()})
+                        if not current_user.is_admin:
+                            if not deduct_ficore_credits(db, current_user.id, current_user.email, 1, 'delete_bill', bill_id):
+                                current_app.logger.error(f"Failed to deduct Ficore Credit for deleting bill {bill_id} by user {current_user.id} with email {current_user.email}", extra={'user_id': current_user.id, 'email': current_user.email})
                                 flash(trans('bill_credit_deduction_failed', default='Failed to deduct Ficore Credit for deleting bill.'), 'danger')
                                 return redirect(url_for('bill.main', tab='manage-bills'))
-                        current_app.logger.info(f"Bill {bill_id} deleted successfully", extra={'user_id': current_user.id})
+                        current_app.logger.info(f"Bill {bill_id} deleted successfully for user {current_user.id} with email {current_user.email}", extra={'user_id': current_user.id, 'email': current_user.email})
                         flash(trans('bill_deleted_success', default='Bill deleted successfully!'), 'success')
                     except Exception as e:
-                        current_app.logger.error(f"Failed to delete bill {bill_id}: {str(e)}", extra={'user_id': current_user.id})
+                        current_app.logger.error(f"Failed to delete bill {bill_id}: {str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
                         flash(trans('bill_delete_failed', default='Failed to delete bill.'), 'danger')
                     return redirect(url_for('bill.main', tab='manage-bills'))
                 elif action == 'toggle_status':
@@ -635,12 +641,13 @@ def main():
                             tool_name='bill',
                             db=db,
                             user_id=current_user.id,
+                            email=current_user.email,
                             action='toggle_bill_status'
                         )
-                        bills_collection.update_one({'_id': ObjectId(bill_id), **filter_kwargs}, {'$set': {'status': new_status, 'updated_at': datetime.utcnow()}})
-                        if not is_admin():
-                            if not deduct_ficore_credits(db, current_user.id, 1, 'toggle_bill_status', bill_id):
-                                current_app.logger.error(f"Failed to deduct Ficore Credit for toggling status of bill {bill_id} by user {current_user.id}", extra={'user_id': current_user.id})
+                        update_bill(db, bill_id, current_user.id, current_user.email, {'status': new_status, 'updated_at': datetime.utcnow()})
+                        if not current_user.is_admin:
+                            if not deduct_ficore_credits(db, current_user.id, current_user.email, 1, 'toggle_bill_status', bill_id):
+                                current_app.logger.error(f"Failed to deduct Ficore Credit for toggling status of bill {bill_id} by user {current_user.id} with email {current_user.email}", extra={'user_id': current_user.id, 'email': current_user.email})
                                 flash(trans('bill_credit_deduction_failed', default='Failed to deduct Ficore Credit for toggling bill status.'), 'danger')
                                 return redirect(url_for('bill.main', tab='manage-bills'))
                         if new_status == 'paid' and bill['frequency'] != 'one-time':
@@ -651,29 +658,29 @@ def main():
                                 new_due_date = calculate_next_due_date(due_date, bill['frequency'])
                                 new_bill = bill.copy()
                                 new_bill['_id'] = ObjectId()
-                                new_bill['due_date'] = new_due_date.isoformat()
+                                new_bill['due_date'] = new_due_date
                                 new_bill['status'] = 'unpaid'
                                 new_bill['created_at'] = datetime.utcnow()
-                                bills_collection.insert_one(new_bill)
-                                if not is_admin():
-                                    if not deduct_ficore_credits(db, current_user.id, 1, 'add_recurring_bill', new_bill['_id']):
-                                        bills_collection.delete_one({'_id': new_bill['_id']})
-                                        current_app.logger.error(f"Failed to deduct Ficore Credit for adding recurring bill {new_bill['_id']} by user {current_user.id}", extra={'user_id': current_user.id})
+                                create_bill(db, new_bill)
+                                if not current_user.is_admin:
+                                    if not deduct_ficore_credits(db, current_user.id, current_user.email, 1, 'add_recurring_bill', new_bill['_id']):
+                                        bills_collection.delete_one({'_id': new_bill['_id'], 'user_id': current_user.id, 'email': current_user.email.lower()})
+                                        current_app.logger.error(f"Failed to deduct Ficore Credit for adding recurring bill {new_bill['_id']} by user {current_user.id} with email {current_user.email}", extra={'user_id': current_user.id, 'email': current_user.email})
                                         flash(trans('bill_credit_deduction_failed', default='Failed to deduct Ficore Credit for adding recurring bill.'), 'danger')
                                         return redirect(url_for('bill.main', tab='manage-bills'))
-                                current_app.logger.info(f"Recurring bill {new_bill['_id']} created for {bill['bill_name']}", extra={'user_id': current_user.id})
+                                current_app.logger.info(f"Recurring bill {new_bill['_id']} created for {bill['bill_name']} for user {current_user.id} with email {current_user.email}", extra={'user_id': current_user.id, 'email': current_user.email})
                                 flash(trans('bill_new_recurring_bill_success', default='New recurring bill created for {bill_name}.').format(bill_name=bill['bill_name']), 'success')
                             except Exception as e:
-                                current_app.logger.error(f"Error creating recurring bill: {str(e)}", extra={'user_id': current_user.id})
+                                current_app.logger.error(f"Error creating recurring bill: {str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
                                 flash(trans('bill_recurring_failed', default='Failed to create recurring bill.'), 'warning')
-                        current_app.logger.info(f"Bill {bill_id} status toggled to {new_status}", extra={'user_id': current_user.id})
+                        current_app.logger.info(f"Bill {bill_id} status toggled to {new_status} for user {current_user.id} with email {current_user.email}", extra={'user_id': current_user.id, 'email': current_user.email})
                         flash(trans('bill_status_toggled_success', default='Bill status toggled successfully!'), 'success')
                     except Exception as e:
-                        current_app.logger.error(f"Failed to toggle bill status {bill_id}: {str(e)}", extra={'user_id': current_user.id})
+                        current_app.logger.error(f"Failed to toggle bill status {bill_id}: {str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
                         flash(trans('bill_status_toggle_failed', default='Failed to toggle bill status.'), 'danger')
                     return redirect(url_for('bill.main', tab='manage-bills'))
 
-        bills = bills_collection.find(filter_kwargs).sort('created_at', -1).limit(100)
+        bills = get_bills(db, filter_kwargs).sort('created_at', -1).limit(100)
         bills_data = []
         edit_forms = {}
         paid_count = unpaid_count = overdue_count = pending_count = 0
@@ -691,10 +698,10 @@ def main():
                 if isinstance(due_date, str):
                     due_date = datetime.strptime(due_date, '%Y-%m-%d').date()
                 elif not isinstance(due_date, date):
-                    current_app.logger.warning(f"Invalid due_date for bill {bill_id}: {bill.get('due_date')}", extra={'user_id': current_user.id})
+                    current_app.logger.warning(f"Invalid due_date for bill {bill_id}: {bill.get('due_date')}", extra={'user_id': current_user.id, 'email': current_user.email})
                     due_date = today
             except (ValueError, TypeError) as e:
-                current_app.logger.warning(f"Invalid due_date for bill {bill_id}: {bill.get('due_date')}, error: {str(e)}", extra={'user_id': current_user.id})
+                current_app.logger.warning(f"Invalid due_date for bill {bill_id}: {bill.get('due_date')}, error: {str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
                 due_date = today
             bill_data = {
                 'id': bill_id,
@@ -750,7 +757,7 @@ def main():
                 elif bill_due_date <= (today + timedelta(days=7)) and bill_data['status'] == 'unpaid':
                     insights.append(trans('bill_insight_due_soon', default=f"Bill '{bill_data['bill_name']}' is due soon. Plan your payment."))
             except (ValueError, TypeError) as e:
-                current_app.logger.warning(f"Invalid amount for bill {bill_id}: {bill.get('amount')}, error: {str(e)}", extra={'user_id': current_user.id})
+                current_app.logger.warning(f"Invalid amount for bill {bill_id}: {bill.get('amount')}, error: {str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
                 continue
         categories = {trans(f'bill_category_{k}', default=k.replace('_', ' ').title()): v for k, v in categories.items() if v > 0}
         if total_overdue > total_bills * 0.3:
@@ -780,7 +787,7 @@ def main():
             active_tab=active_tab
         )
     except Exception as e:
-        current_app.logger.error(f"Error in bill.main: {str(e)}", extra={'user_id': current_user.id})
+        current_app.logger.error(f"Error in bill.main: {str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
         flash(trans('bill_dashboard_load_error', default='Error loading bill dashboard.'), 'danger')
         return render_template(
             'personal/BILL/bill_main.html',
@@ -809,7 +816,6 @@ def main():
 
 @bill_bp.route('/summary')
 @login_required
-@requires_role(['personal', 'admin'])
 @limiter.limit("5 per minute")
 def summary():
     """Return summary of upcoming bills for the current user."""
@@ -819,26 +825,26 @@ def summary():
             tool_name='bill',
             db=db,
             user_id=current_user.id,
+            email=current_user.email,
             action='summary_view'
         )
-        filter_kwargs = {} if is_admin() else {'user_id': current_user.id}
+        filter_kwargs = {'user_id': current_user.id, 'email': current_user.email.lower()}
         bills_collection = db.bills
         today = date.today()
         pipeline = [
-            {'$match': {**filter_kwargs, 'status': {'$ne': 'paid'}, 'due_date': {'$gte': today.isoformat()}}},
+            {'$match': {**filter_kwargs, 'status': {'$ne': 'paid'}, 'due_date': {'$gte': today}}},
             {'$group': {'_id': None, 'totalUpcomingBills': {'$sum': '$amount'}}}
         ]
         result = list(bills_collection.aggregate(pipeline))
         total_upcoming_bills = result[0]['totalUpcomingBills'] if result else 0.0
-        current_app.logger.info(f"Fetched bill summary for user {current_user.id}: {total_upcoming_bills}", extra={'user_id': current_user.id})
+        current_app.logger.info(f"Fetched bill summary for user {current_user.id} with email {current_user.email}: {total_upcoming_bills}", extra={'user_id': current_user.id, 'email': current_user.email})
         return jsonify({'totalUpcomingBills': format_currency(total_upcoming_bills)})
     except Exception as e:
-        current_app.logger.error(f"Error in bill.summary: {str(e)}", extra={'user_id': current_user.id})
+        current_app.logger.error(f"Error in bill.summary: {str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
         return jsonify({'totalUpcomingBills': format_currency(0.0)}), 500
 
 @bill_bp.route('/unsubscribe', methods=['GET', 'POST'])
 @login_required
-@requires_role(['personal', 'admin'])
 @limiter.limit("5 per minute")
 def unsubscribe():
     """Unsubscribe user from bill email notifications."""
@@ -848,28 +854,27 @@ def unsubscribe():
             tool_name='bill',
             db=db,
             user_id=current_user.id,
+            email=current_user.email,
             action='unsubscribe'
         )
-        filter_kwargs = {'user_email': current_user.email}
-        if not is_admin():
-            filter_kwargs['user_id'] = current_user.id
+        filter_kwargs = {'user_id': current_user.id, 'email': current_user.email.lower()}
         bills_collection = db.bills
         result = bills_collection.update_many(filter_kwargs, {'$set': {'send_email': False}})
         if result.modified_count > 0:
-            current_app.logger.info(f"Successfully unsubscribed email {current_user.email}", extra={'user_id': current_user.id})
+            current_app.logger.info(f"Successfully unsubscribed email {current_user.email} for user {current_user.id}", extra={'user_id': current_user.id, 'email': current_user.email})
             flash(trans('bill_unsubscribe_success', default='Successfully unsubscribed from bill emails.'), 'success')
         else:
-            current_app.logger.warning(f"No records updated for email {current_user.email} during unsubscribe", extra={'user_id': current_user.id})
+            current_app.logger.warning(f"No records updated for email {current_user.email} for user {current_user.id} during unsubscribe", extra={'user_id': current_user.id, 'email': current_user.email})
             flash(trans('bill_unsubscribe_failed', default='No matching email found or already unsubscribed.'), 'danger')
         return redirect(url_for('bill.main', tab='manage-bills'))
     except Exception as e:
-        current_app.logger.error(f"Error in bill.unsubscribe: {str(e)}", extra={'user_id': current_user.id})
+        current_app.logger.error(f"Error in bill.unsubscribe: {str(e)}", extra={'user_id': current_user.id, 'email': current_user.email})
         flash(trans('bill_unsubscribe_error', default='Error processing unsubscribe request.'), 'danger')
         return redirect(url_for('bill.main', tab='manage-bills'))
 
 @bill_bp.errorhandler(CSRFError)
 def handle_csrf_error(e):
     """Handle CSRF errors with user-friendly message."""
-    current_app.logger.error(f"CSRF error on {request.path}: {e.description}", extra={'user_id': current_user.id})
+    current_app.logger.error(f"CSRF error on {request.path}: {e.description}", extra={'user_id': current_user.id, 'email': current_user.email})
     flash(trans('bill_csrf_error', default='Form submission failed due to a missing security token. Please refresh and try again.'), 'danger')
     return redirect(url_for('bill.main', tab='add-bill')), 403
