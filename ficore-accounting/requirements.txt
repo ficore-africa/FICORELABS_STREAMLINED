@@ -39,3 +39,4 @@ Flask-Compress==1.15
 bleach==6.1.0
 Pillow>=10.0.0
 geocoder
+pydantic
