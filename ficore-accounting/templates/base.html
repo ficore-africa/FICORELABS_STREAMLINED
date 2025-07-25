@@ -46,7 +46,7 @@
             </button>
             <button class="icon-btn language-toggle" id="languageToggle" onclick="toggleLanguage()" data-bs-toggle="tooltip" data-bs-title="{{ t('general_language_toggle_tooltip', default='Toggle language') | e }}" aria-label="{{ t('general_language_toggle', default='Toggle language') | e }}">
                 <i class="bi bi-globe"></i>
-                <span id="languageText">{{ 'ENGLISH' if lang == 'en' else 'HAUSA' }}</span>
+                <span id="languageText">{{ 'ENGLISH' if session.get('language', 'en') == 'en' else 'HAUSA' }}</span>
             </button>
             <button class="icon-btn" id="darkModeToggle" onclick="toggleDarkMode()" data-bs-toggle="tooltip" data-bs-title="{{ t('general_mode_toggle_tooltip_switch_to_dark', default='Switch to dark mode') | e }}" aria-label="{{ t('general_mode_toggle_dark', default='Toggle dark mode') | e }}">
                 <i class="bi bi-moon-stars"></i>
@@ -58,7 +58,7 @@
         </div>
     </header>
 
-    {# Original navbar for unauthenticated users #}
+    {# Navigation for unauthenticated users #}
     {% if not current_user.is_authenticated %}
         <nav class="navbar navbar-expand-lg bg-light">
             <div class="container-fluid">
@@ -83,13 +83,13 @@
                             <a class="nav-link {% if request.endpoint == 'users.signup' %}active{% endif %}" href="{{ url_for('users.signup') | e }}" data-bs-toggle="tooltip" data-bs-title="{{ t('general_signup_tooltip', default='Create a new account') | e }}" aria-current="{% if request.endpoint == 'users.signup' %}page{% endif %}">{{ t('general_signup', default='Sign Up') | e }}</a>
                         </li>
                         <li class="nav-item">
-                            <button class="nav-link btn btn-link language-toggle" id="languageToggle" onclick="toggleLanguage()" data-bs-toggle="tooltip" data-bs-title="{{ t('general_language_toggle_tooltip', default='Toggle language') | e }}" aria-label="{{ t('general_language_toggle', default='Toggle language') | e }}">
+                            <button class="nav-link btn btn-link language-toggle" id="languageToggleNav" onclick="toggleLanguage()" data-bs-toggle="tooltip" data-bs-title="{{ t('general_language_toggle_tooltip', default='Toggle language') | e }}" aria-label="{{ t('general_language_toggle', default='Toggle language') | e }}">
                                 <i class="bi bi-globe"></i>
-                                <span id="languageText">{{ 'ENGLISH' if lang == 'en' else 'HAUSA' }}</span>
+                                <span id="languageText">{{ 'ENGLISH' if session.get('language', 'en') == 'en' else 'HAUSA' }}</span>
                             </button>
                         </li>
                         <li class="nav-item">
-                            <button class="nav-link btn btn-link" id="darkModeToggle" onclick="toggleDarkMode()" data-bs-toggle="tooltip" data-bs-title="{{ t('general_mode_toggle_tooltip_switch_to_dark', default='Switch to dark mode') | e }}" aria-label="{{ t('general_mode_toggle_dark', default='Toggle dark mode') | e }}">
+                            <button class="nav-link btn btn-link" id="darkModeToggleNav" onclick="toggleDarkMode()" data-bs-toggle="tooltip" data-bs-title="{{ t('general_mode_toggle_tooltip_switch_to_dark', default='Switch to dark mode') | e }}" aria-label="{{ t('general_mode_toggle_dark', default='Toggle dark mode') | e }}">
                                 <i class="bi bi-moon-stars"></i>
                             </button>
                         </li>
@@ -191,11 +191,11 @@
       intent="WELCOME"
       chat-title="Ficore Assistant"
       agent-id="{{ dialogflow_agent_id | default('ficoreassistant-kywl') }}"
-      language-code="{{ lang | default('en') }}"
+      language-code="{{ session.get('language', 'en') }}"
       chat-icon="{{ url_for('static', filename='img/chat-icon.png') | e }}"
     ></df-messenger>
     <script>
-        // Custom confetti effect to replace canvas-confetti
+        // Custom confetti effect
         function launchConfetti() {
             const canvas = document.createElement('canvas');
             canvas.style.position = 'fixed';
@@ -253,9 +253,7 @@
             }
 
             animate();
-            setTimeout(() => {
-                particles.length = 0; // Stop animation after a while
-            }, 5000);
+            setTimeout(() => particles.length = 0, 5000);
         }
 
         function showToast(message, type = "info") {
@@ -269,14 +267,12 @@
         // Flag to prevent rendering authenticated content after 401/403
         window.isAuthenticatedContentBlocked = false;
 
-        // Clear local user-specific data
         function clearUserData() {
             localStorage.clear();
             sessionStorage.clear();
             console.log('Local user data cleared.');
         }
 
-        // Handle 401/403 errors and redirect to login
         function handleAuthError() {
             if (!window.isAuthenticatedContentBlocked) {
                 window.isAuthenticatedContentBlocked = true;
@@ -285,7 +281,6 @@
             }
         }
 
-        // Intercept fetch requests for global error handling
         (function() {
             const originalFetch = window.fetch;
             window.fetch = async function(...args) {
@@ -306,7 +301,6 @@
             };
         })();
 
-        // Intercept XMLHttpRequest for global error handling
         (function() {
             const originalOpen = XMLHttpRequest.prototype.open;
             XMLHttpRequest.prototype.open = function(method, url, ...args) {
@@ -332,19 +326,16 @@
                 console.log('Dialogflow Messenger loaded successfully.');
             });
 
-            // Initialize tooltips
             document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(tooltipTriggerEl => {
                 new bootstrap.Tooltip(tooltipTriggerEl);
             });
 
-            // Debug icons
             document.querySelectorAll('.bi').forEach(icon => {
                 if (!icon.className.includes('bi-')) {
                     console.warn('Invalid or missing Bootstrap Icon class:', icon.className);
                 }
             });
 
-            // Debug bottom navigation positioning
             const bottomNav = document.querySelector('.bottom-nav');
             if (bottomNav) {
                 const computedStyle = window.getComputedStyle(bottomNav);
@@ -356,25 +347,23 @@
                 }
             }
 
-            // Navbar collapse fix: Close menu on link click for mobile (for unauthenticated nav)
             const navbarToggler = document.querySelector('.navbar-toggler');
             const navbarCollapse = document.querySelector('#navbarNav');
             if (navbarToggler && navbarCollapse) {
                 document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
                     link.addEventListener('click', () => {
                         if (navbarCollapse.classList.contains('show')) {
-                            navbarToggler.click(); // Programmatically trigger toggler click to close menu
+                            navbarToggler.click();
                         }
                     });
                 });
             }
 
-            // Dark mode initialization
             const storedDarkMode = localStorage.getItem('dark_mode');
             const isDark = storedDarkMode === 'true';
             if (isDark) {
                 document.documentElement.classList.add('dark-mode');
-                const toggles = document.querySelectorAll('#darkModeToggle');
+                const toggles = document.querySelectorAll('#darkModeToggle, #darkModeToggleNav');
                 toggles.forEach(toggle => {
                     toggle.querySelector('i').className = 'bi bi-sun';
                     toggle.setAttribute('data-bs-title', '{{ t("general_mode_toggle_tooltip_switch_to_light", default="Switch to light mode") | e }}');
@@ -393,7 +382,7 @@
             const isDark = !document.documentElement.classList.contains('dark-mode');
             document.documentElement.classList.toggle('dark-mode', isDark);
             localStorage.setItem('dark_mode', isDark);
-            const toggles = document.querySelectorAll('#darkModeToggle');
+            const toggles = document.querySelectorAll('#darkModeToggle, #darkModeToggleNav');
             toggles.forEach(darkModeToggle => {
                 darkModeToggle.querySelector('i').className = isDark ? 'bi bi-sun' : 'bi bi-moon-stars';
                 darkModeToggle.setAttribute('data-bs-title', isDark ? '{{ t("general_mode_toggle_tooltip_switch_to_light", default="Switch to light mode") | e }}' : '{{ t("general_mode_toggle_tooltip_switch_to_dark", default="Switch to dark mode") | e }}');
@@ -411,18 +400,17 @@
                 console.error('Language text element not found.');
                 return;
             }
-            const languageText = languageTexts[0]; // Use the first instance
-            const currentLang = languageText.textContent.toLowerCase() === 'english' ? 'en' : 'ha';
+            const currentLang = languageTexts[0].textContent.toLowerCase() === 'english' ? 'en' : 'ha';
             const newLang = currentLang === 'en' ? 'ha' : 'en';
             const newLangText = newLang === 'en' ? 'ENGLISH' : 'HAUSA';
             try {
                 const response = await fetch('{{ url_for("set_language", lang="") }}' + newLang, {
-                    method: 'GET',
+                    method: h'GET',
                     headers: {
                         'X-CSRFToken': getCsrfToken()
                     }
                 });
-                if (!response.ok) throw new Error('Failed to toggle language');
+                if (!response.ok) throw new Error('Failed to toggle language: ' + response.statusText);
                 languageTexts.forEach(text => text.textContent = newLangText);
                 const dfMessenger = document.querySelector('df-messenger');
                 if (dfMessenger) {
@@ -558,9 +546,7 @@
 
         function getCsrfToken() {
             const token = document.querySelector('meta[name="csrf-token"]')?.content;
-            if (!token) {
-                console.error('CSRF token not found in meta tag');
-            }
+            if (!token) console.error('CSRF token not found in meta tag');
             return token || '';
         }
 
