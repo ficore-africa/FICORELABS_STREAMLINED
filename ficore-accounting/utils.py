@@ -4,7 +4,7 @@ import uuid
 import os
 import certifi
 from datetime import datetime
-from flask import session, has_request_context, current_app, url_for, request
+from flask import has_request_context, current_app, url_for, request
 from flask_mail import Mail
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -18,52 +18,85 @@ from wtforms import ValidationError
 
 # Flask extensions
 from flask_login import LoginManager
-from flask_session import Session
 from flask_wtf.csrf import CSRFProtect
 from flask_babel import Babel
 from flask_compress import Compress
 
 # Initialize extensions
 login_manager = LoginManager()
-flask_session = Session()
 csrf = CSRFProtect()
 babel = Babel()
 compress = Compress()
 limiter = Limiter(key_func=get_remote_address, default_limits=['200 per day', '50 per hour'], storage_uri='memory://')
 
-# Set up logging with session support
+# Set up logging with user_id and email support
 root_logger = logging.getLogger('ficore_app')
 root_logger.setLevel(logging.DEBUG)
 
-class SessionFormatter(logging.Formatter):
+class UserFormatter(logging.Formatter):
+    """Custom formatter to include user_id, email, role, and IP in logs."""
     def format(self, record):
-        record.session_id = getattr(record, 'session_id', 'no_session_id')
-        record.ip_address = getattr(record, 'ip_address', 'unknown')
+        record.user_id = getattr(record, 'user_id', 'no-user-id')
+        record.email = getattr(record, 'email', 'no-email')
         record.user_role = getattr(record, 'user_role', 'anonymous')
+        record.ip_address = getattr(record, 'ip_address', 'unknown')
         return super().format(record)
 
-class SessionAdapter(logging.LoggerAdapter):
+class UserAdapter(logging.LoggerAdapter):
+    """Adapter to inject user context into log messages."""
     def process(self, msg, kwargs):
         kwargs['extra'] = kwargs.get('extra', {})
-        session_id = 'no-session-id'
-        ip_address = 'unknown'
+        user_id = 'no-user-id'
+        email = 'no-email'
         user_role = 'anonymous'
+        ip_address = 'unknown'
         try:
             if has_request_context():
-                session_id = session.get('sid', 'no-session-id')
+                if current_user.is_authenticated:
+                    user_id = current_user.id
+                    email = current_user.email
+                    user_role = current_user.role
                 ip_address = request.remote_addr
-                user_role = current_user.role if current_user.is_authenticated else 'anonymous'
-            else:
-                session_id = f'non-request-{str(uuid.uuid4())[:8]}'
         except Exception as e:
-            session_id = f'session-error-{str(uuid.uuid4())[:8]}'
-            kwargs['extra']['session_error'] = str(e)
-        kwargs['extra']['session_id'] = session_id
-        kwargs['extra']['ip_address'] = ip_address
+            user_id = f'user-error-{str(uuid.uuid4())[:8]}'
+            kwargs['extra']['user_error'] = str(e)
+        kwargs['extra']['user_id'] = user_id
+        kwargs['extra']['email'] = email
         kwargs['extra']['user_role'] = user_role
+        kwargs['extra']['ip_address'] = ip_address
         return msg, kwargs
 
-logger = SessionAdapter(root_logger, {})
+logger = UserAdapter(root_logger, {})
+
+# Input validation utilities
+def validate_user_id(user_id):
+    """Validate user_id format (UUID).
+    
+    Args:
+        user_id: User ID to validate
+    
+    Returns:
+        bool: True if valid UUID, False otherwise
+    """
+    try:
+        uuid_obj = uuid.UUID(str(user_id))
+        return str(uuid_obj) == str(user_id)
+    except ValueError:
+        return False
+
+def is_valid_email(email):
+    """Validate email address format.
+    
+    Args:
+        email: Email address to validate
+    
+    Returns:
+        bool: True if email is valid, False otherwise
+    """
+    if not email or not isinstance(email, str):
+        return False
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return bool(re.match(pattern, email.strip()))
 
 # Tool/navigation lists with endpoints
 _PERSONAL_TOOLS = [
@@ -281,65 +314,6 @@ _BUSINESS_NAV = [
     },
 ]
 
-_BUSINESS_EXPLORE_FEATURES = [
-    {
-        "endpoint": "receipts.index",
-        "label": "MoneyIn",
-        "label_key": "receipts_dashboard",
-        "description_key": "receipts_dashboard",
-        "tooltip_key": "receipts_tooltip",
-        "icon": "bi-cash-coin"
-    }, 
-    {
-        "endpoint": "payments.index",
-        "label": "MoneyOut",
-        "label_key": "payments_dashboard",
-        "description_key": "payments_dashboard",
-        "tooltip_key": "payments_tooltip",
-        "icon": "bi-calculator"
-    },
-    {
-        "endpoint": "taxation_bp.calculate_tax",
-        "label": "Taxation",
-        "label_key": "taxation_calculator",
-        "description_key": "taxation_calculator_desc",
-        "tooltip_key": "taxation_tooltip",
-        "icon": "bi-calculator"
-    },
-    {
-        "endpoint": "debtors.index",
-        "label": "They Owe",
-        "label_key": "debtors_dashboard",
-        "description_key": "debtors_dashboard_desc",
-        "tooltip_key": "debtors_tooltip",
-        "icon": "bi-person-plus"
-    },
-    {
-        "endpoint": "creditors.index",
-        "label": "I Owe",
-        "label_key": "creditors_dashboard",
-        "description_key": "creditors_dashboard_desc",
-        "tooltip_key": "creditors_tooltip",
-        "icon": "bi-arrow-up-circle"
-    },
-    {
-        "endpoint": "credits.request_credits",
-        "label": "Ficore Credits",
-        "label_key": "credits_dashboard",
-        "description_key": "credits_dashboard_desc",
-        "tooltip_key": "credits_tooltip",
-        "icon": "bi-coin"
-    },
-    {
-        "endpoint": "reports.index",
-        "label": "Reports",
-        "label_key": "business_reports",
-        "description_key": "business_reports_desc",
-        "tooltip_key": "business_reports_tooltip",
-        "icon": "bi-journal-minus"
-    },
-]
-
 _AGENT_TOOLS = [
     {
         "endpoint": "agents_bp.agent_portal",
@@ -350,11 +324,11 @@ _AGENT_TOOLS = [
         "icon": "bi-person-workspace"
     },
     {
-        "endpoint": "agents_bp.manage_credits",
-        "label": "Ficore Credits",
+        "endpoint": "Ficore agents_bp.manage_credits",
+        "label": "Credits",
         "label_key": "credits_dashboard",
         "description_key": "credits_dashboard_desc",
-        "tooltip_key": "credits_tooltip",
+        "tooltip_key": "credits",
         "icon": "bi-coin"
     },
 ]
@@ -369,7 +343,7 @@ _AGENT_NAV = [
         "icon": "bi-person-workspace"
     },
     {
-        "endpoint": "agents_bp.agent_portal",
+        "endpoint": "agents_bp.my_activity",
         "label": "My Activity",
         "label_key": "agents_my_activity",
         "description_key": "agents_my_activity_desc",
@@ -510,8 +484,16 @@ _ADMIN_EXPLORE_FEATURES = [
     },
 ]
 
-def get_explore_features():
-    """Return explore features for unauthenticated users on the landing page with resolved URLs and ensured label_key."""
+def get_explore_features(user_id=None, email=None):
+    """Return explore features for unauthenticated users on the landing page with resolved URLs and ensured label_key.
+    
+    Args:
+        user_id (str, optional): User ID for logging context
+        email (str, optional): User email for logging context
+    
+    Returns:
+        list: List of feature dictionaries with resolved URLs
+    """
     try:
         with current_app.app_context():
             features = [
@@ -593,11 +575,15 @@ def get_explore_features():
                         feature[key] = default_value
                         logger.warning(
                             f"Missing {key} for feature {feature.get('label', 'unknown')}, assigned default: {feature[key]}",
-                            extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+                            extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
                         )
             return generate_tools_with_urls(features)
     except Exception as e:
-        logger.error(f"Error generating explore features: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error generating explore features: {str(e)}",
+            exc_info=True,
+            extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+        )
         return []
 
 # Initialize module-level variables
@@ -697,20 +683,20 @@ def get_limiter():
     """
     return limiter
 
-def log_tool_usage(action, tool_name=None, details=None, user_id=None, db=None, session_id=None):
+def log_tool_usage(action, tool_name=None, details=None, user_id=None, email=None, db=None):
     """
-    Log tool usage to MongoDB tool_usage collection with improved error handling and session support.
+    Log tool usage to MongoDB tool_usage collection with improved error handling and user_id/email support.
     
     Args:
-        action (str): The action performed (e.g., 'main_view', 'add_bill').
-        tool_name (str, optional): The name of the tool used. Defaults to action if None.
-        details (dict, optional): Additional details about the action.
-        user_id (str, optional): ID of the user performing the action.
-        db (MongoDB database, optional): MongoDB database instance. If None, fetched via get_mongo_db().
-        session_id (str, optional): Session ID for the action.
+        action (str): The action performed (e.g., 'main_view', 'add_bill')
+        tool_name (str, optional): The name of the tool used. Defaults to action if None
+        details (dict, optional): Additional details about the action
+        user_id (str, optional): ID of the user performing the action
+        email (str, optional): Email of the user performing the action
+        db (MongoDB database, optional): MongoDB database instance. If None, fetched via get_mongo_db()
     
     Raises:
-        RuntimeError: If database connection fails or insertion fails.
+        RuntimeError: If database connection fails or insertion fails
     """
     try:
         if db is None:
@@ -719,12 +705,15 @@ def log_tool_usage(action, tool_name=None, details=None, user_id=None, db=None, 
         if not action or not isinstance(action, str):
             raise ValueError("Action must be a non-empty string")
         
-        effective_session_id = session_id or session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'
+        if user_id and not validate_user_id(user_id):
+            raise ValueError(f"Invalid user_id: {user_id}")
+        if email and not is_valid_email(email):
+            raise ValueError(f"Invalid email: {email}")
         
         log_entry = {
             'tool_name': tool_name or action,
             'user_id': str(user_id) if user_id else None,
-            'session_id': effective_session_id,
+            'email': email.lower() if email else None,
             'action': details.get('action') if details else None,
             'timestamp': datetime.utcnow(),
             'ip_address': request.remote_addr if has_request_context() else 'unknown',
@@ -734,71 +723,22 @@ def log_tool_usage(action, tool_name=None, details=None, user_id=None, db=None, 
         db.tool_usage.insert_one(log_entry)
         logger.info(
             f"Logged tool usage: {action}",
-            extra={
-                'user_id': user_id or 'unknown',
-                'session_id': effective_session_id,
-                'ip_address': request.remote_addr if has_request_context() else 'unknown'
-            }
+            extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
         )
     except ValueError as e:
         logger.error(
             f"Invalid input for log_tool_usage: {str(e)}",
             exc_info=True,
-            extra={
-                'user_id': user_id or 'unknown',
-                'session_id': session_id or session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id',
-                'ip_address': request.remote_addr if has_request_context() else 'unknown'
-            }
+            extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
         )
         raise
     except Exception as e:
         logger.error(
             f"Failed to log tool usage for action {action}: {str(e)}",
             exc_info=True,
-            extra={
-                'user_id': user_id or 'unknown',
-                'session_id': session_id or session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id',
-                'ip_address': request.remote_addr if has_request_context() else 'unknown'
-            }
+            extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
         )
         raise RuntimeError(f"Failed to log tool usage: {str(e)}")
-
-def create_anonymous_session():
-    """
-    Create a guest session for anonymous access with retry logic.
-    """
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            with current_app.app_context():
-                session['sid'] = str(uuid.uuid4())
-                session['is_anonymous'] = True
-                session['created_at'] = datetime.utcnow().isoformat()
-                if 'lang' not in session:
-                    session['lang'] = 'en'
-                session.modified = True
-                logger.info(
-                    f"{trans('general_anonymous_session_created', default='Created anonymous session')}: {session['sid']}",
-                    extra={'session_id': session['sid'], 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
-                )
-                return
-        except Exception as e:
-            logger.warning(
-                f"Attempt {attempt + 1} failed to create anonymous session: {str(e)}",
-                exc_info=True,
-                extra={'session_id': 'no-session-id', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
-            )
-            if attempt == max_retries - 1:
-                session['sid'] = f'error-{str(uuid.uuid4())[:8]}'
-                session['is_anonymous'] = True
-                session.modified = True
-                logger.error(
-                    f"{trans('general_anonymous_session_error', default='Error creating anonymous session after retries')}: {str(e)}",
-                    exc_info=True,
-                    extra={'session_id': session['sid'], 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
-                )
-                return
-            time.sleep(0.5)
 
 def clean_currency(value, max_value=10000000000):
     """
@@ -819,7 +759,7 @@ def clean_currency(value, max_value=10000000000):
         if value is None or str(value).strip() == '':
             logger.debug(
                 "clean_currency received empty or None input, returning 0.0",
-                extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+                extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
             )
             return 0.0
 
@@ -829,7 +769,7 @@ def clean_currency(value, max_value=10000000000):
             if value > max_value:
                 logger.warning(
                     f"Currency value exceeds maximum: value={value}, max_value={max_value}",
-                    extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+                    extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
                 )
                 raise ValidationError(trans('bill_amount_max', default=f"Input cannot exceed {max_value:,}", lang=get_user_language()))
             return value
@@ -838,10 +778,10 @@ def clean_currency(value, max_value=10000000000):
         value_str = str(value).strip()
         logger.debug(
             f"clean_currency processing input: '{value_str}'",
-            extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+            extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
         )
 
-        # Remove currency symbols and formatting characters (e.g., commas, spaces)
+        # Remove currency symbols and formatting characters
         cleaned = re.sub(r'[^\d.]', '', value_str.replace('NGN', '').replace('₦', '').replace('$', '').replace('€', '').replace('£', '').replace(',', ''))
 
         # Handle multiple decimal points
@@ -853,7 +793,7 @@ def clean_currency(value, max_value=10000000000):
         if not cleaned or cleaned == '.':
             logger.warning(
                 f"Invalid currency format after cleaning: original='{value_str}', cleaned='{cleaned}'",
-                extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+                extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
             )
             raise ValidationError(trans('invalid_currency_format', default='Invalid currency format', lang=get_user_language()))
 
@@ -861,7 +801,7 @@ def clean_currency(value, max_value=10000000000):
         if cleaned.count('.') > 1 or cleaned.count('-') > 1 or (cleaned.count('-') == 1 and not cleaned.startswith('-')):
             logger.warning(
                 f"Invalid currency format: original='{value_str}', cleaned='{cleaned}', multiple decimals or misplaced negative sign",
-                extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+                extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
             )
             raise ValidationError(trans('invalid_currency_format', default='Invalid currency format', lang=get_user_language()))
 
@@ -871,42 +811,44 @@ def clean_currency(value, max_value=10000000000):
             if result < 0:
                 logger.warning(
                     f"Negative currency value not allowed: original='{value_str}', cleaned='{cleaned}', result={result}",
-                    extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+                    extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
                 )
                 raise ValidationError(trans('negative_currency_not_allowed', default='Negative currency values are not allowed', lang=get_user_language()))
             if result > max_value:
                 logger.warning(
                     f"Currency value exceeds maximum: original='{value_str}', cleaned='{cleaned}', result={result}, max_value={max_value}",
-                    extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+                    extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
                 )
                 raise ValidationError(trans('bill_amount_max', default=f"Input cannot exceed {max_value:,}", lang=get_user_language()))
             logger.debug(
                 f"clean_currency successfully processed '{value_str}' to {result}",
-                extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+                extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
             )
             return result
         except ValueError as e:
             logger.warning(
                 f"Currency format error: original='{value_str}', cleaned='{cleaned}', error='{str(e)}'",
-                extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+                extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
             )
             raise ValidationError(trans('invalid_currency_format', default='Invalid currency format', lang=get_user_language()))
     except ValidationError as e:
-        raise  # Re-raise ValidationError for form validation
+        raise
     except Exception as e:
         logger.error(
             f"Unexpected error in clean_currency for value '{value}': {str(e)}",
-            extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+            extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
         )
         raise ValidationError(trans('invalid_currency_format', default='Invalid currency format', lang=get_user_language()))
 
-def trans_function(key, lang=None, **kwargs):
+def trans_function(key, lang=None, user_id=None, email=None, **kwargs):
     """
     Translation function wrapper for backward compatibility.
     
     Args:
         key: Translation key
-        lang: Language code ('en', 'ha'). Defaults to session['lang'] or 'en'
+        lang: Language code ('en', 'ha'). Defaults to user language or 'en'
+        user_id (str, optional): User ID for logging context
+        email (str, optional): User email for logging context
         **kwargs: String formatting parameters
     
     Returns:
@@ -914,36 +856,23 @@ def trans_function(key, lang=None, **kwargs):
     """
     try:
         with current_app.app_context():
+            if lang is None:
+                lang = get_user_language(user_id, email)
             translated = trans(key, lang=lang, **kwargs)
             if translated == key:  # Translation missing
                 logger.warning(
-                    f"Missing translation for key='{key}' in module='general', lang='{lang or session.get('lang', 'en')}'",
-                    extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+                    f"Missing translation for key='{key}' in module='general', lang='{lang}'",
+                    extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
                 )
-                return key  # Fallback to the key itself
+                return key
             return translated
     except Exception as e:
         logger.error(
             f"Translation error for key '{key}': {str(e)}",
             exc_info=True,
-            extra={'session_id': session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'}
+            extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
         )
-        return key  # Fallback to the key itself
-
-def is_valid_email(email):
-    """
-    Validate email address format.
-    
-    Args:
-        email: Email address to validate
-    
-    Returns:
-        bool: True if email is valid, False otherwise
-    """
-    if not email or not isinstance(email, str):
-        return False
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return re.match(pattern, email.strip()) is not None
+        return key
 
 def get_mongo_db():
     """
@@ -951,6 +880,9 @@ def get_mongo_db():
     
     Returns:
         Database object
+    
+    Raises:
+        RuntimeError: If connection fails after retries
     """
     max_retries = 3
     retry_delay = 1
@@ -960,8 +892,10 @@ def get_mongo_db():
                 if 'mongo' not in current_app.extensions:
                     mongo_uri = os.getenv('MONGO_URI')
                     if not mongo_uri:
-                        logger.error("MONGO_URI environment variable not set",
-                                    extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr if has_request_context() else 'unknown'})
+                        logger.error(
+                            "MONGO_URI environment variable not set",
+                            extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+                        )
                         raise RuntimeError("MONGO_URI environment variable not set")
                     
                     client = MongoClient(
@@ -974,8 +908,10 @@ def get_mongo_db():
                     )
                     client.admin.command('ping')
                     current_app.extensions['mongo'] = client
-                    logger.info("MongoDB client initialized successfully in utils.get_mongo_db",
-                               extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr if has_request_context() else 'unknown'})
+                    logger.info(
+                        "MongoDB client initialized successfully in utils.get_mongo_db",
+                        extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+                    )
                 
                 db = current_app.extensions['mongo']['ficodb']
                 db.command('ping')
@@ -984,13 +920,13 @@ def get_mongo_db():
             logger.warning(
                 f"Attempt {attempt + 1}/{max_retries} failed to connect to MongoDB: {str(e)}",
                 exc_info=True,
-                extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+                extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
             )
             if attempt == max_retries - 1:
                 logger.error(
                     f"Failed to connect to MongoDB after {max_retries} attempts: {str(e)}",
                     exc_info=True,
-                    extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+                    extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
                 )
                 raise RuntimeError(f"Failed to connect to MongoDB: {str(e)}")
             time.sleep(retry_delay)
@@ -998,9 +934,22 @@ def get_mongo_db():
 
 def close_mongo_db():
     """
-    No-op function for backward compatibility.
+    Close MongoDB client connection.
     """
-    pass
+    try:
+        with current_app.app_context():
+            if 'mongo' in current_app.extensions:
+                current_app.extensions['mongo'].close()
+                logger.info(
+                    "MongoDB client closed",
+                    extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+                )
+    except Exception as e:
+        logger.error(
+            f"Error closing MongoDB client: {str(e)}",
+            exc_info=True,
+            extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+        )
 
 def get_mail(app):
     """
@@ -1018,7 +967,11 @@ def get_mail(app):
             logger.info(trans('general_mail_service_initialized', default='Mail service initialized'))
             return mail
     except Exception as e:
-        logger.error(f"{trans('general_mail_service_error', default='Error initializing mail service')}: {str(e)}", exc_info=True)
+        logger.error(
+            f"{trans('general_mail_service_error', default='Error initializing mail service')}: {str(e)}",
+            exc_info=True,
+            extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+        )
         return None
 
 def requires_role(role):
@@ -1048,17 +1001,21 @@ def requires_role(role):
                 if current_user.role not in allowed_roles:
                     flash(trans('general_access_denied', default='You do not have permission to access this page.'), 'danger')
                     return redirect(url_for('dashboard.index'))
+                if not validate_user_id(current_user.id) or not is_valid_email(current_user.email):
+                    flash(trans('invalid_identity', default='Invalid user identity.'), 'danger')
+                    return redirect(url_for('users.login'))
                 return f(*args, **kwargs)
         return decorated_function
     return decorator
 
-def check_ficore_credit_balance(required_amount=1, user_id=None):
+def check_ficore_credit_balance(required_amount=1, user_id=None, email=None):
     """
     Check if user has sufficient Ficore Credit balance.
     
     Args:
         required_amount: Required credit amount (default: 1)
         user_id: User ID (optional, will use current_user if not provided)
+        email: User email (optional, will use current_user if not provided)
     
     Returns:
         bool: True if user has sufficient balance, False otherwise
@@ -1066,34 +1023,44 @@ def check_ficore_credit_balance(required_amount=1, user_id=None):
     try:
         with current_app.app_context():
             from flask_login import current_user
-            if user_id is None and current_user.is_authenticated:
+            if user_id is None and email is None and current_user.is_authenticated:
                 user_id = current_user.id
-            if not user_id:
+                email = current_user.email
+            if not user_id or not email:
+                return False
+            if not validate_user_id(user_id) or not is_valid_email(email):
                 return False
             db = get_mongo_db()
             if db is None:
                 return False
-            user_query = get_user_query(user_id)
+            user_query = get_user_query(user_id, email)
             user = db.users.find_one(user_query)
             if not user:
                 return False
             credit_balance = user.get('ficore_credit_balance', 0)
             return credit_balance >= required_amount
     except Exception as e:
-        logger.error(f"{trans('general_ficore_credit_balance_check_error', default='Error checking Ficore Credit balance for user')} {user_id}: {str(e)}", exc_info=True)
+        logger.error(
+            f"{trans('general_ficore_credit_balance_check_error', default='Error checking Ficore Credit balance for user')} {user_id}/{email}: {str(e)}",
+            exc_info=True,
+            extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+        )
         return False
 
-def get_user_query(user_id):
+def get_user_query(user_id, email):
     """
     Get user query for MongoDB operations.
     
     Args:
         user_id: User ID
+        email: User email
     
     Returns:
         dict: MongoDB query for user
     """
-    return {'_id': user_id}
+    if not validate_user_id(user_id) or not is_valid_email(email):
+        raise ValueError("Invalid user_id or email")
+    return {'_id': user_id, 'email': email.lower()}
 
 def is_admin():
     """
@@ -1109,7 +1076,7 @@ def is_admin():
     except Exception:
         return False
 
-def format_currency(amount, currency='₦', lang=None, include_symbol=True):
+def format_currency(amount, currency='₦', lang=None, include_symbol=True, user_id=None, email=None):
     """
     Format currency amount with proper locale.
     
@@ -1118,6 +1085,8 @@ def format_currency(amount, currency='₦', lang=None, include_symbol=True):
         currency: Currency symbol (default: '₦')
         lang: Language code for formatting
         include_symbol: Whether to include the currency symbol (default: True)
+        user_id (str, optional): User ID for context
+        email (str, optional): User email for context
     
     Returns:
         Formatted currency string
@@ -1125,7 +1094,7 @@ def format_currency(amount, currency='₦', lang=None, include_symbol=True):
     try:
         with current_app.app_context():
             if lang is None:
-                lang = session.get('lang', 'en') if has_request_context() else 'en'
+                lang = get_user_language(user_id, email)
             amount = clean_currency(amount) if isinstance(amount, str) else float(amount) if amount is not None else 0
             if amount.is_integer():
                 formatted = f"{int(amount):,}"
@@ -1133,10 +1102,13 @@ def format_currency(amount, currency='₦', lang=None, include_symbol=True):
                 formatted = f"{amount:,.2f}"
             return f"{currency}{formatted}" if include_symbol else formatted
     except (TypeError, ValueError, ValidationError) as e:
-        logger.warning(f"{trans('general_currency_format_error', default='Error formatting currency')} {amount}: {str(e)}")
+        logger.warning(
+            f"{trans('general_currency_format_error', default='Error formatting currency')} {amount}: {str(e)}",
+            extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+        )
         return f"{currency}0" if include_symbol else "0"
 
-def format_date(date_obj, lang=None, format_type='short'):
+def format_date(date_obj, lang=None, format_type='short', user_id=None, email=None):
     """
     Format date according to language preference.
     
@@ -1144,6 +1116,8 @@ def format_date(date_obj, lang=None, format_type='short'):
         date_obj: Date object to format
         lang: Language code
         format_type: 'short', 'long', or 'iso'
+        user_id (str, optional): User ID for context
+        email (str, optional): User email for context
     
     Returns:
         Formatted date string
@@ -1151,7 +1125,7 @@ def format_date(date_obj, lang=None, format_type='short'):
     try:
         with current_app.app_context():
             if lang is None:
-                lang = session.get('lang', 'en') if has_request_context() else 'en'
+                lang = get_user_language(user_id, email)
             if not date_obj:
                 return ''
             if isinstance(date_obj, str):
@@ -1175,7 +1149,10 @@ def format_date(date_obj, lang=None, format_type='short'):
                 else:
                     return date_obj.strftime('%m/%d/%Y')
     except Exception as e:
-        logger.warning(f"{trans('general_date_format_error', default='Error formatting date')} {date_obj}: {str(e)}")
+        logger.warning(
+            f"{trans('general_date_format_error', default='Error formatting date')} {date_obj}: {str(e)}",
+            extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+        )
         return str(date_obj) if date_obj else ''
 
 def sanitize_input(input_string, max_length=None):
@@ -1229,20 +1206,34 @@ def validate_required_fields(data, required_fields):
             missing_fields.append(field)
     return len(missing_fields) == 0, missing_fields
 
-def get_user_language():
+def get_user_language(user_id=None, email=None):
     """
-    Get the current user's language preference.
+    Get the current user's language preference from MongoDB.
+    
+    Args:
+        user_id (str, optional): User ID
+        email (str, optional): User email
     
     Returns:
-        Language code ('en' or 'ha')
+        str: Language code ('en' or 'ha')
     """
     try:
         with current_app.app_context():
-            return session.get('lang', 'en') if has_request_context() else 'en'
-    except Exception:
+            if user_id and email and validate_user_id(user_id) and is_valid_email(email):
+                db = get_mongo_db()
+                user_query = get_user_query(user_id, email)
+                user = db.users.find_one(user_query)
+                if user:
+                    return user.get('language', 'en')
+            return 'en'
+    except Exception as e:
+        logger.warning(
+            f"Error fetching user language for {user_id}/{email}: {str(e)}",
+            extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+        )
         return 'en'
 
-def log_user_action(action, details=None, user_id=None):
+def log_user_action(action, details=None, user_id=None, email=None):
     """
     Log user action for audit purposes.
     
@@ -1250,17 +1241,22 @@ def log_user_action(action, details=None, user_id=None):
         action: Action performed
         details: Additional details about the action
         user_id: User ID (optional, will use current_user if not provided)
+        email: User email (optional, will use current_user if not provided)
     """
     try:
         with current_app.app_context():
             from flask_login import current_user
             from flask import request
-            if user_id is None and current_user.is_authenticated:
+            if user_id is None and email is None and current_user.is_authenticated:
                 user_id = current_user.id
-            session_id = session.get('sid', 'no-session-id') if has_request_context() else 'no-session-id'
+                email = current_user.email
+            if user_id and not validate_user_id(user_id):
+                raise ValueError(f"Invalid user_id: {user_id}")
+            if email and not is_valid_email(email):
+                raise ValueError(f"Invalid email: {email}")
             log_entry = {
                 'user_id': user_id,
-                'session_id': session_id,
+                'email': email.lower() if email else None,
                 'action': action,
                 'details': details or {},
                 'timestamp': datetime.utcnow(),
@@ -1270,9 +1266,16 @@ def log_user_action(action, details=None, user_id=None):
             db = get_mongo_db()
             if db:
                 db.audit_logs.insert_one(log_entry)
-            logger.info(f"{trans('general_user_action_logged', default='User action logged')}: {action} by user {user_id}")
+            logger.info(
+                f"{trans('general_user_action_logged', default='User action logged')}: {action} by user {user_id}/{email}",
+                extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+            )
     except Exception as e:
-        logger.error(f"{trans('general_user_action_log_error', default='Error logging user action')}: {str(e)}", exc_info=True)
+        logger.error(
+            f"{trans('general_user_action_log_error', default='Error logging user action')}: {str(e)}",
+            exc_info=True,
+            extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+        )
 
 def send_sms_reminder(recipient, message):
     """
@@ -1295,7 +1298,10 @@ def send_sms_reminder(recipient, message):
             sms_api_url = current_app.config.get('SMS_API_URL', 'https://api.smsprovider.com/send')
             sms_api_key = current_app.config.get('SMS_API_KEY', '')
             if not sms_api_key:
-                logger.warning('SMS_API_KEY not set, cannot send SMS')
+                logger.warning(
+                    'SMS_API_KEY not set, cannot send SMS',
+                    extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+                )
                 return False, {'error': 'SMS_API_KEY not configured'}
             payload = {
                 'to': f'+{recipient}',
@@ -1305,13 +1311,23 @@ def send_sms_reminder(recipient, message):
             response = requests.post(sms_api_url, json=payload, timeout=10)
             response_data = response.json()
             if response.status_code == 200 and response_data.get('success', False):
-                logger.info(f"SMS sent to {recipient}")
+                logger.info(
+                    f"SMS sent to {recipient}",
+                    extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+                )
                 return True, response_data
             else:
-                logger.error(f"Failed to send SMS to {recipient}: {response_data}")
+                logger.error(
+                    f"Failed to send SMS to {recipient}: {response_data}",
+                    extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+                )
                 return False, response_data
     except Exception as e:
-        logger.error(f"Error sending SMS to {recipient}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error sending SMS to {recipient}: {str(e)}",
+            exc_info=True,
+            extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+        )
         return False, {'error': str(e)}
 
 def send_whatsapp_reminder(recipient, message):
@@ -1335,7 +1351,10 @@ def send_whatsapp_reminder(recipient, message):
             whatsapp_api_url = current_app.config.get('WHATSAPP_API_URL', 'https://api.whatsapp.com/send')
             whatsapp_api_key = current_app.config.get('WHATSAPP_API_KEY', '')
             if not whatsapp_api_key:
-                logger.warning('WHATSAPP_API_KEY not set, cannot send WhatsApp message')
+                logger.warning(
+                    'WHATSAPP_API_KEY not set, cannot send WhatsApp message',
+                    extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+                )
                 return False, {'error': 'WHATSAPP_API_KEY not configured'}
             payload = {
                 'phone': f'+{recipient}',
@@ -1345,24 +1364,34 @@ def send_whatsapp_reminder(recipient, message):
             response = requests.post(whatsapp_api_url, json=payload, timeout=10)
             response_data = response.json()
             if response.status_code == 200 and response_data.get('success', False):
-                logger.info(f"WhatsApp message sent to {recipient}")
+                logger.info(
+                    f"WhatsApp message sent to {recipient}",
+                    extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+                )
                 return True, response_data
             else:
-                logger.error(f"Failed to send WhatsApp message to {recipient}: {response_data}")
+                logger.error(
+                    f"Failed to send WhatsApp message to {recipient}: {response_data}",
+                    extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+                )
                 return False, response_data
     except Exception as e:
-        logger.error(f"Error sending WhatsApp message to {recipient}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error sending WhatsApp message to {recipient}: {str(e)}",
+            exc_info=True,
+            extra={'user_id': 'unknown', 'email': 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+        )
         return False, {'error': str(e)}
 
-def get_recent_activities(user_id=None, is_admin_user=False, db=None, session_id=None, limit=10):
+def get_recent_activities(user_id=None, email=None, is_admin_user=False, db=None, limit=10):
     """
-    Fetch recent activities across all tools for a user or session.
+    Fetch recent activities across all tools for a user.
     
     Args:
         user_id: ID of the user (optional for admin)
+        email: Email of the user (optional for admin)
         is_admin_user: Whether the user is an admin (default: False)
         db: MongoDB database instance (optional)
-        session_id: Session ID for anonymous users (optional)
         limit: Maximum number of activities to return (default: 10)
     
     Returns:
@@ -1371,7 +1400,7 @@ def get_recent_activities(user_id=None, is_admin_user=False, db=None, session_id
     if db is None:
         db = get_mongo_db()
     
-    query = {} if is_admin_user else {'user_id': str(user_id)} if user_id else {'session_id': session_id} if session_id else {}
+    query = {} if is_admin_user else get_user_query(user_id, email) if user_id and email else {}
     
     try:
         activities = []
@@ -1380,7 +1409,10 @@ def get_recent_activities(user_id=None, is_admin_user=False, db=None, session_id
         bills = db.bills.find(query).sort('created_at', -1).limit(5)
         for bill in bills:
             if not bill.get('created_at') or not bill.get('bill_name'):
-                logger.warning(f"Skipping invalid bill record: {bill.get('_id')}", extra={'session_id': session_id or 'unknown', 'ip': request.remote_addr or 'unknown'})
+                logger.warning(
+                    f"Skipping invalid bill record: {bill.get('_id')}",
+                    extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
+                )
                 continue
             activities.append({
                 'type': 'bill',
@@ -1440,8 +1472,8 @@ def get_recent_activities(user_id=None, is_admin_user=False, db=None, session_id
         activities.sort(key=lambda x: x['timestamp'], reverse=True)
         
         logger.debug(
-            f"Fetched {len(activities)} recent activities for {'user ' + str(user_id) if user_id else 'session ' + str(session_id) if session_id else 'all'}",
-            extra={'session_id': session_id or 'unknown', 'ip': request.remote_addr or 'unknown'}
+            f"Fetched {len(activities)} recent activities for user {user_id}/{email}",
+            extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
         )
         
         return activities[:limit]
@@ -1449,30 +1481,30 @@ def get_recent_activities(user_id=None, is_admin_user=False, db=None, session_id
         logger.error(
             f"Failed to fetch recent activities: {str(e)}",
             exc_info=True,
-            extra={'session_id': session_id or 'unknown', 'ip': request.remote_addr or 'unknown'}
+            extra={'user_id': user_id or 'unknown', 'email': email or 'unknown', 'ip_address': request.remote_addr if has_request_context() else 'unknown'}
         )
         raise
 
-def get_all_recent_activities(user_id=None, is_admin_user=False, db=None, session_id=None, limit=10):
+def get_all_recent_activities(user_id=None, email=None, is_admin_user=False, db=None, limit=10):
     """
-    Fetch recent activities across all tools for a user or session.
+    Fetch recent activities across all tools for a user.
     
     Args:
         user_id: ID of the user (optional for admin)
+        email: Email of the user (optional for admin)
         is_admin_user: Whether the user is an admin (default: False)
         db: MongoDB database instance (optional)
-        session_id: Session ID for anonymous users (optional)
         limit: Maximum number of activities to return (default: 10)
     
     Returns:
         list: List of recent activity records
     """
-    return get_recent_activities(user_id, is_admin_user, db, session_id, limit)
+    return get_recent_activities(user_id, email, is_admin_user, db, limit)
 
 # Export all functions and variables
 __all__ = [
-    'login_manager', 'clean_currency', 'log_tool_usage', 'flask_session', 'csrf', 'babel', 'compress', 'limiter',
-    'get_limiter', 'create_anonymous_session', 'trans_function', 'is_valid_email',
+    'login_manager', 'clean_currency', 'log_tool_usage', 'csrf', 'babel', 'compress', 'limiter',
+    'get_limiter', 'trans_function', 'is_valid_email', 'validate_user_id',
     'get_mongo_db', 'close_mongo_db', 'get_mail', 'requires_role', 'check_ficore_credit_balance',
     'get_user_query', 'is_admin', 'format_currency', 'format_date', 'sanitize_input',
     'generate_unique_id', 'validate_required_fields', 'get_user_language',
