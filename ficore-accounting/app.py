@@ -16,8 +16,7 @@ from functools import wraps
 from mailersend_email import init_email_config
 from scheduler_setup import init_scheduler
 from models import (
-    create_user, get_user_by_email, get_user, initialize_app_data, update_user,
-    to_dict_user
+    create_user, get_user_by_email, get_user, initialize_app_data, to_dict_user
 )
 from tax_models import (
     initialize_tax_data, get_payment_locations, to_dict_payment_location
