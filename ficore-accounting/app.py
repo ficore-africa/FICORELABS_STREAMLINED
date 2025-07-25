@@ -26,7 +26,6 @@ from tax_models import (
     initialize_tax_data, get_payment_locations, to_dict_payment_location
 )
 import utils
-from session_utils import create_anonymous_session
 from translations import register_translation, trans, get_translations, get_all_translations, get_module_translations
 from flask_login import LoginManager, login_required, current_user, UserMixin, logout_user
 from flask_wtf.csrf import CSRFError
