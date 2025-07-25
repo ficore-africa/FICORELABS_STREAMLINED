@@ -669,7 +669,7 @@ def reset_password():
             try:
                 db = utils.get_mongo_db()
                 user = db.users.find_one({'email': email})
-                if user not user:
+                if not user:
                     flash(trans.error('general_invalid_email', default='No user found with this email'), 'danger')
                     logger.warning(f"No user found with email: {email}")
                     return render_template('users/reset_password.html', form=form, token=token, title=trans('general_reset_password', lang=lang))
@@ -681,11 +681,11 @@ def reset_password():
                         '$unset': {'reset_token': '', 'reset_token_expiry': ''}
                     }
                 )
-                log_audit_action('reset_password', user['user_id'], ['_id']{'user_id': user['_id']})
+                log_audit_action('reset_password', user['user_id'], {'user_id': user['_id']})
                 logger.info(f"Password reset successfully for user: {user['_id']}")
                 flash(trans('general_reset_success', default='Password reset successfully'), 'success')
                 return redirect(url_for('users.login', lang=lang))
-        except (errors.PyMongoError as e):
+        except errors.PyMongoError as e:
             logger.error(f"MongoDB error during password reset for {email}: {str(e)}")
             flash(trans.error('general_database_error', default='Error accessing database. Please try again later.'), 'error')
             return render_template('users/reset_password.html', form=form, token=token, title=trans('general_reset_password', lang=lang)), 500
@@ -698,7 +698,7 @@ def reset_password():
             for error in errors:
                 flash(f"{field}: {error}", 'error')
         response = make_response(render_template('users/reset_password.html', form=form, token=token, title=trans('general_reset_password', lang=lang)))
-        response.headers['Cache-Control'] = 'no-cache-control, no-store, must-revalidate, max-age=0'
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
         return response
