@@ -1108,7 +1108,7 @@ def get_credit_requests(db, filter_kwargs: dict, skip: int=0, limit: int=10) -> 
     try:
         if 'email' in filter_kwargs:
             filter_kwargs['email'] = filter_kwargs['email'].lower()
-        return list(db.credit_requests.find(filter_kwargs).sort('created_at', DESCENDING).skip(skip).limit(limit)
+        return list(db.credit_requests.find(filter_kwargs).sort('created_at', DESCENDING).skip(skip).limit(limit))
     except Exception as e:
         logger.error(f"{trans('credits_requests_fetch_error', default='Error getting credit requests')}: {str(e)}", 
                     extra={'user_id': 'no-user-id', 'email': 'no-email'}, exc_info=True)
