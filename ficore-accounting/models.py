@@ -299,7 +299,7 @@ def initialize_app_data(app):
                         }
                     },
                     'indexes': [
-                        {'key': [('user_id', ASCENDING), ('email', ASCENDING), ('status', ASCENDING), ('updated_at', DESCENDING)]}
+                        {'key': [('user_id', ASCENDING), ('email', ASCENDING), ('status', ASCENDING), ('updated_at', DESCENDING)]},
                         {'key': [('session_id', ASCENDING), ('status', ASCENDING), ('updated_at', DESCENDING)]}
                     ]
                 },
