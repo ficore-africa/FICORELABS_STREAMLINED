@@ -1,13 +1,17 @@
+# Import necessary modules
 import os
 import sys
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 import logging
-import re
 import uuid
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from flask import (
     Flask, jsonify, request, render_template, redirect, url_for, flash,
-    make_response, has_request_context, g, send_from_directory, current_app, abort, session
+    make_response, has_request_context, g, send_from_directory, session, Response, current_app, abort
 )
+from flask_session import Session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash
 from itsdangerous import URLSafeTimedSerializer
@@ -16,19 +20,23 @@ from functools import wraps
 from mailersend_email import init_email_config
 from scheduler_setup import init_scheduler
 from models import (
-    create_user, get_user_by_email, get_user, initialize_app_data, to_dict_user
+    create_user, get_user_by_email, get_user, get_budgets, get_bills,
+    to_dict_budget, to_dict_bill, initialize_app_data
 )
 from tax_models import (
     initialize_tax_data, get_payment_locations, to_dict_payment_location
 )
 import utils
+from session_utils import create_anonymous_session
 from translations import register_translation, trans, get_translations, get_all_translations, get_module_translations
 from flask_login import LoginManager, login_required, current_user, UserMixin, logout_user
 from flask_wtf.csrf import CSRFError
 from jinja2.exceptions import TemplateNotFound
+import time
 from pymongo import MongoClient
 import certifi
 from credits.routes import credits_bp
+import re
 from flask_mailman import Mail
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -37,6 +45,7 @@ from flask_babel import Babel
 from flask_compress import Compress
 import requests
 from business_finance import business
+
 
 # Load environment variables
 load_dotenv()
