@@ -909,7 +909,7 @@ def get_user(db, user_id: str, email: Optional[str]=None) -> Optional[User]:
                 ficore_credit_balance=user_doc.get('ficore_credit_balance', 0),
                 language=user_doc.get('language', 'en'),
                 dark_mode=user_doc.get('dark_mode', False),
-                )
+                
             )
         return None
     except Exception as e:
