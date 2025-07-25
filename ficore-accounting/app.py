@@ -16,19 +16,8 @@ from functools import wraps
 from mailersend_email import init_email_config
 from scheduler_setup import init_scheduler
 from models import (
-    create_user, get_user_by_email, get_user, get_budgets, get_bills,
-    to_dict_budget, to_dict_bill, initialize_app_data,
-    update_user, get_shopping_lists, create_shopping_list, update_shopping_list,
-    delete_shopping_list, to_dict_shopping_list, create_shopping_item,
-    get_shopping_items, update_shopping_item, to_dict_shopping_item,
-    create_record, get_records, update_record, to_dict_record,
-    create_cashflow, get_cashflows, update_cashflow, to_dict_cashflow,
-    create_ficore_credit_transaction, get_ficore_credit_transactions,
-    to_dict_ficore_credit_transaction, create_audit_log, get_audit_logs,
-    to_dict_audit_log, create_credit_request, update_credit_request,
-    get_credit_requests, to_dict_credit_request, get_agent, update_agent,
-    create_feedback, log_tool_usage, create_budget, create_bill,
-    create_bill_reminder, to_dict_user, to_dict_bill_reminder
+    create_user, get_user_by_email, get_user, initialize_app_data, update_user,
+    to_dict_user
 )
 from tax_models import (
     initialize_tax_data, get_payment_locations, to_dict_payment_location
