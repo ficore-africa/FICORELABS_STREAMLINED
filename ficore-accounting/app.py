@@ -1,8 +1,5 @@
 import os
 import sys
-project_root = os.path.dirname(os.path.abspath(__file__))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
 import logging
 from datetime import datetime, date
 from flask import (
@@ -14,11 +11,23 @@ from werkzeug.security import generate_password_hash
 from itsdangerous import URLSafeTimedSerializer
 from dotenv import load_dotenv
 from functools import wraps
+import uuid
 from mailersend_email import init_email_config
 from scheduler_setup import init_scheduler
 from models import (
     create_user, get_user_by_email, get_user, get_budgets, get_bills,
-    to_dict_budget, to_dict_bill, initialize_app_data
+    to_dict_budget, to_dict_bill, initialize_app_data,
+    update_user, get_shopping_lists, create_shopping_list, update_shopping_list,
+    delete_shopping_list, to_dict_shopping_list, create_shopping_item,
+    get_shopping_items, update_shopping_item, to_dict_shopping_item,
+    create_record, get_records, update_record, to_dict_record,
+    create_cashflow, get_cashflows, update_cashflow, to_dict_cashflow,
+    create_ficore_credit_transaction, get_ficore_credit_transactions,
+    to_dict_ficore_credit_transaction, create_audit_log, get_audit_logs,
+    to_dict_audit_log, create_credit_request, update_credit_request,
+    get_credit_requests, to_dict_credit_request, get_agent, update_agent,
+    create_feedback, log_tool_usage, create_budget, create_bill,
+    create_bill_reminder, to_dict_user, to_dict_bill_reminder
 )
 from tax_models import (
     initialize_tax_data, get_payment_locations, to_dict_payment_location
@@ -50,6 +59,7 @@ root_logger.setLevel(logging.INFO)
 class UserFormatter(logging.Formatter):
     def format(self, record):
         record.user_id = getattr(record, 'user_id', 'no-user-id')
+        record.email = getattr(record, 'email', 'no-email')
         record.user_role = getattr(record, 'user_role', 'anonymous')
         record.ip_address = getattr(record, 'ip_address', 'unknown')
         return super().format(record)
@@ -58,17 +68,21 @@ class UserAdapter(logging.LoggerAdapter):
     def process(self, msg, kwargs):
         kwargs['extra'] = kwargs.get('extra', {})
         user_id = 'no-user-id'
+        email = 'no-email'
         user_role = 'anonymous'
         ip_address = 'unknown'
         try:
             if has_request_context():
-                user_id = current_user.id if current_user.is_authenticated else 'anonymous'
-                user_role = current_user.role if current_user.is_authenticated else 'anonymous'
+                if current_user.is_authenticated:
+                    user_id = current_user.id
+                    email = current_user.email
+                    user_role = current_user.role
                 ip_address = request.remote_addr
         except Exception as e:
             user_id = f'user-error-{str(uuid.uuid4())[:8]}'
             kwargs['extra']['user_error'] = str(e)
         kwargs['extra']['user_id'] = user_id
+        kwargs['extra']['email'] = email
         kwargs['extra']['user_role'] = user_role
         kwargs['extra']['ip_address'] = ip_address
         return msg, kwargs
@@ -76,22 +90,22 @@ class UserAdapter(logging.LoggerAdapter):
 logger = UserAdapter(root_logger, {})
 
 # Initialize extensions
-login_manager = utils.LoginManager()
-csrf = utils.CSRFProtect()
-babel = utils.Babel()
-compress = utils.Compress()
-limiter = utils.Limiter(key_func=get_remote_address, default_limits=['200 per day', '50 per hour'], storage_uri='memory://')
+login_manager = LoginManager()
+csrf = CSRFProtect()
+babel = Babel()
+compress = Compress()
+limiter = Limiter(key_func=get_remote_address, default_limits=['200 per day', '50 per hour'], storage_uri='memory://')
 
 # Decorators
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated:
-            logger.warning("Unauthorized access attempt to admin route", extra={'ip_address': request.remote_addr})
+            logger.warning("Unauthorized access attempt to admin route")
             return redirect(url_for('users.login'))
-        if not utils.is_admin():
-            flash(utils.trans('general_no_permission', default='You do not have permission to access this page.'), 'danger')
-            logger.warning(f"Non-admin user {current_user.id} attempted access", extra={'ip_address': request.remote_addr})
+        if not current_user.is_admin:
+            flash(trans('general_no_permission', default='You do not have permission to access this page.'), 'danger')
+            logger.warning(f"Non-admin user {current_user.id}/{current_user.email} attempted access")
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
@@ -99,8 +113,8 @@ def admin_required(f):
 def setup_logging(app):
     handler = logging.StreamHandler(sys.stderr)
     handler.setLevel(logging.INFO)
-    handler.setFormatter(UserFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s [user: %(user_id)s, role: %(user_role)s, ip: %(ip_address)s]'))
-    root_logger.handlers = []  # Clear existing handlers
+    handler.setFormatter(UserFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s [user: %(user_id)s, email: %(email)s, role: %(user_role)s, ip: %(ip_address)s]'))
+    root_logger.handlers = []
     root_logger.addHandler(handler)
     
     flask_logger = logging.getLogger('flask')
@@ -129,32 +143,37 @@ def check_mongodb_connection(app):
         return False
 
 class User(UserMixin):
-    def __init__(self, id, email, display_name=None, role='personal'):
+    def __init__(self, id, email, display_name=None, role='personal', is_admin=False, setup_complete=False, coin_balance=0, ficore_credit_balance=0, language='en', dark_mode=False):
         self.id = id
         self.email = email
         self.display_name = display_name or id
         self.role = role
-        self.lang = 'en'  # Default language
+        self.is_admin = is_admin
+        self.setup_complete = setup_complete
+        self.coin_balance = coin_balance
+        self.ficore_credit_balance = ficore_credit_balance
+        self.language = language
+        self.dark_mode = dark_mode
 
     def get(self, key, default=None):
         try:
             with current_app.app_context():
-                user = current_app.extensions['mongo']['ficodb'].users.find_one({'_id': self.id})
-                if user and key == 'lang':
-                    self.lang = user.get('language', 'en')
+                user = current_app.extensions['mongo']['ficodb'].users.find_one({'_id': self.id, 'email': self.email.lower()})
+                if user and key == 'language':
+                    self.language = user.get('language', 'en')
                 return user.get(key, default) if user else default
         except Exception as e:
-            logger.error(f'Error fetching user data for {self.id}: {str(e)}', exc_info=True)
+            logger.error(f'Error fetching user data for {self.id}/{self.email}: {str(e)}', exc_info=True)
             return default
 
     @property
     def is_active(self):
         try:
             with current_app.app_context():
-                user = current_app.extensions['mongo']['ficodb'].users.find_one({'_id': self.id})
+                user = current_app.extensions['mongo']['ficodb'].users.find_one({'_id': self.id, 'email': self.email.lower()})
                 return user.get('is_active', True) if user else False
         except Exception as e:
-            logger.error(f'Error checking active status for user {self.id}: {str(e)}', exc_info=True)
+            logger.error(f'Error checking active status for user {self.id}/{self.email}: {str(e)}', exc_info=True)
             return False
 
     def get_id(self):
@@ -163,12 +182,12 @@ class User(UserMixin):
     def get_first_name(self):
         try:
             with current_app.app_context():
-                user = current_app.extensions['mongo']['ficodb'].users.find_one({'_id': self.id})
+                user = current_app.extensions['mongo']['ficodb'].users.find_one({'_id': self.id, 'email': self.email.lower()})
                 if user and 'personal_details' in user:
                     return user['personal_details'].get('first_name', self.display_name)
                 return self.display_name
         except Exception as e:
-            logger.error(f'Error fetching first name for user {self.id}: {str(e)}', exc_info=True)
+            logger.error(f'Error fetching first name for user {self.id}/{self.email}: {str(e)}', exc_info=True)
             return self.display_name
 
 def create_app():
@@ -213,7 +232,7 @@ def create_app():
     try:
         client = MongoClient(
             app.config['MONGO_URI'],
-            serverSelectionTimeoutMS=5,
+            serverSelectionTimeoutMS=5000,
             tls=True,
             tlsCAFile=certifi.where() if os.getenv('MONGO_CA_FILE') is None else os.getenv('MONGO_CA_FILE'),
             maxPoolSize=50,
@@ -239,29 +258,37 @@ def create_app():
     
     # Initialize extensions
     setup_logging(app)
-    utils.compress.init_app(app)
-    utils.csrf.init_app(app)
+    compress.init_app(app)
+    csrf.init_app(app)
     mail = Mail()
     mail.init_app(app)
-    utils.limiter.init_app(app)
+    limiter.init_app(app)
     serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
-    utils.babel.init_app(app)
-    utils.login_manager.init_app(app)
-    utils.login_manager.login_view = 'users.login'
+    babel.init_app(app)
+    login_manager.init_app(app)
+    login_manager.login_view = 'users.login'
 
     # User loader callback for Flask-Login
-    @utils.login_manager.user_loader
+    @login_manager.user_loader
     def load_user(user_id):
         try:
             with app.app_context():
-                user = app.extensions['mongo']['ficodb'].users.find_one({'_id': user_id})
+                db = app.extensions['mongo']['ficodb']
+                # Attempt to load user with user_id; email will be verified later in get_user
+                user = get_user(db, user_id)
                 if not user:
                     return None
                 return User(
-                    id=user['_id'],
-                    email=user['email'],
-                    display_name=user.get('display_name', user['_id']),
-                    role=user.get('role', 'personal')
+                    id=user.id,
+                    email=user.email,
+                    display_name=user.display_name,
+                    role=user.role,
+                    is_admin=user.is_admin,
+                    setup_complete=user.setup_complete,
+                    coin_balance=user.coin_balance,
+                    ficore_credit_balance=user.ficore_credit_balance,
+                    language=user.language,
+                    dark_mode=user.dark_mode
                 )
         except Exception as e:
             logger.error(f"Error loading user {user_id}: {str(e)}", exc_info=True)
@@ -303,16 +330,16 @@ def create_app():
                 raise
             
             try:
-                db.bills.create_index([('user_id', 1), ('due_date', 1)])
+                db.bills.create_index([('user_id', 1), ('email', 1), ('due_date', 1)])
                 db.bills.create_index([('created_at', -1)])
                 db.bills.create_index([('due_date', 1)])
                 db.bills.create_index([('status', 1)])
-                db.budgets.create_index([('user_id', 1), ('created_at', -1)])
+                db.budgets.create_index([('user_id', 1), ('email', 1), ('created_at', -1)])
                 db.budgets.create_index([('created_at', -1)])
-                db.bill_reminders.create_index([('user_id', 1), ('sent_at', -1)])
+                db.bill_reminders.create_index([('user_id', 1), ('email', 1), ('sent_at', -1)])
                 db.bill_reminders.create_index([('notification_id', 1)])
-                db.records.create_index([('user_id', 1), ('type', 1), ('created_at', -1)])
-                db.cashflows.create_index([('user_id', 1), ('type', 1), ('created_at', -1)])
+                db.records.create_index([('user_id', 1), ('email', 1), ('type', 1), ('created_at', -1)])
+                db.cashflows.create_index([('user_id', 1), ('email', 1), ('type', 1), ('created_at', -1)])
                 logger.info('Created indexes for collections')
             except Exception as e:
                 logger.warning(f'Some indexes may already exist: {str(e)}')
@@ -326,22 +353,19 @@ def create_app():
             admin_user = get_user_by_email(db, admin_email)
             if not admin_user:
                 user_data = {
-                    '_id': admin_username.lower(),
-                    'username': admin_username.lower(),
                     'email': admin_email.lower(),
-                    'password_hash': generate_password_hash(admin_password),
-                    'is_admin': True,
+                    'password': admin_password,
                     'role': 'admin',
-                    'created_at': datetime.utcnow(),
-                    'lang': 'en',
+                    'display_name': admin_username,
+                    'is_admin': True,
                     'setup_complete': True,
-                    'display_name': admin_username
+                    'language': 'en',
+                    'created_at': datetime.utcnow()
                 }
-                db.users.insert_one(user_data)
-                create_user(db, user_data)
-                logger.info(f'Admin user created with email: {admin_email}')
+                admin_user = create_user(db, user_data)
+                logger.info(f'Admin user created with ID: {admin_user.id}, email: {admin_email}')
             else:
-                logger.info(f'Admin user already exists with email: {admin_email}')
+                logger.info(f'Admin user already exists with ID: {admin_user.id}, email: {admin_email}')
     except Exception as e:
         logger.error(f'Error in create_app initialization: {str(e)}', exc_info=True)
         raise
@@ -363,43 +387,22 @@ def create_app():
     from ai import ai_bp
     
     app.register_blueprint(users_bp, url_prefix='/users')
-    logger.info('Registered users blueprint')
     app.register_blueprint(agents_bp, url_prefix='/agents')
-    logger.info('Registered agents blueprint')
     app.register_blueprint(taxation_bp, url_prefix='/taxation')
-    logger.info('Registered taxation blueprint')
-    try:
-        app.register_blueprint(credits_bp, url_prefix='/credits')
-        logger.info('Registered credits blueprint and initialized limiter')
-    except Exception as e:
-        logger.warning(f'Could not import credits blueprint: {str(e)}')
+    app.register_blueprint(credits_bp, url_prefix='/credits')
     app.register_blueprint(creditors_bp, url_prefix='/creditors')
-    logger.info('Registered creditors blueprint')
     app.register_blueprint(dashboard_bp, url_prefix='/dashboard')
-    logger.info('Registered dashboard blueprint')
     app.register_blueprint(debtors_bp, url_prefix='/debtors')
-    logger.info('Registered debtors blueprint')
     app.register_blueprint(payments_bp, url_prefix='/payments')
-    logger.info('Registered payments blueprint')
     app.register_blueprint(receipts_bp, url_prefix='/receipts')
-    logger.info('Registered receipts blueprint')
     app.register_blueprint(reports_bp, url_prefix='/reports')
-    logger.info('Registered reports blueprint')
     app.register_blueprint(settings_bp, url_prefix='/settings')
-    logger.info('Registered settings blueprint')
-    try:
-        app.register_blueprint(admin_bp, url_prefix='/admin')
-        logger.info('Registered admin blueprint')
-    except Exception as e:
-        logger.warning(f'Could not import admin blueprint: {str(e)}')
+    app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(personal_bp)
-    logger.info('Registered personal blueprint with url_prefix="/personal"')
     app.register_blueprint(general_bp, url_prefix='/general')
-    logger.info('Registered general blueprint')
     app.register_blueprint(business, url_prefix='/business')
-    logger.info('Registered business blueprint with url_prefix="/business"')
     app.register_blueprint(ai_bp)
-    logger.info('Registered AI blueprint')
+    logger.info('Registered all blueprints')
 
     utils.initialize_tools_with_urls(app)
     logger.info('Initialized tools and navigation with resolved URLs')
@@ -414,7 +417,7 @@ def create_app():
         trans=trans,
         trans_function=utils.trans_function,
         get_translations=get_translations,
-        is_admin=utils.is_admin
+        is_admin=lambda: current_user.is_admin if current_user.is_authenticated else False
     )
     
     @app.template_filter('safe_nav')
@@ -446,7 +449,7 @@ def create_app():
     @app.template_filter('format_datetime')
     def format_datetime(value):
         try:
-            lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
+            lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
             format_str = '%B %d, %Y, %I:%M %p' if lang == 'en' else '%d %B %Y, %I:%M %p'
             if isinstance(value, datetime):
                 return value.strftime(format_str)
@@ -463,7 +466,7 @@ def create_app():
     @app.template_filter('format_date')
     def format_date(value):
         try:
-            lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
+            lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
             format_str = '%Y-%m-%d' if lang == 'en' else '%d-%m-%Y'
             if isinstance(value, datetime):
                 return value.strftime(format_str)
@@ -479,7 +482,7 @@ def create_app():
     
     @app.template_filter('trans')
     def trans_filter(key, **kwargs):
-        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
+        lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
         translation = utils.trans(key, lang=lang, **kwargs)
         if translation == key:
             logger.warning(f'Missing translation for key="{key}" in lang="{lang}"')
@@ -525,14 +528,14 @@ def create_app():
             explore_features_for_template=explore_features_for_template,
             bottom_nav_items=bottom_nav_items,
             t=trans,
-            lang=getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en',
+            lang=getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en',
             format_currency=utils.format_currency,
             format_date=utils.format_date
         )
     
     @app.context_processor
     def inject_globals():
-        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
+        lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
         def context_trans(key, **kwargs):
             used_lang = kwargs.pop('lang', lang)
             return utils.trans(
@@ -595,11 +598,9 @@ def create_app():
                 }), 400
             if current_user.is_authenticated:
                 try:
-                    app.extensions['mongo']['ficodb'].users.update_one(
-                        {'_id': current_user.id},
-                        {'$set': {'language': new_lang}}
-                    )
-                    current_user.lang = new_lang
+                    db = app.extensions['mongo']['ficodb']
+                    update_user(db, current_user.id, current_user.email, {'language': new_lang})
+                    current_user.language = new_lang
                 except Exception as e:
                     logger.warning(f'Could not update user language preference: {str(e)}')
             logger.info(f'Language changed to {new_lang}')
@@ -616,8 +617,8 @@ def create_app():
     
     @app.route('/', methods=['GET', 'HEAD'])
     def index():
-        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
-        logger.info(f'Serving index page, authenticated: {current_user.is_authenticated}, user: {current_user.username if current_user.is_authenticated and hasattr(current_user, "username") else "None"}')
+        lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
+        logger.info(f'Serving index page, authenticated: {current_user.is_authenticated}')
         if request.method == 'HEAD':
             return '', 200
         if current_user.is_authenticated:
@@ -637,12 +638,12 @@ def create_app():
     @app.route('/general_dashboard')
     @login_required
     def general_dashboard():
-        logger.info(f'Redirecting to unified dashboard for authenticated user {current_user.id}')
+        logger.info(f'Redirecting to unified dashboard for user {current_user.id}/{current_user.email}')
         return redirect(url_for('dashboard_bp.index'))
     
     @app.route('/business-agent-home')
     def business_agent_home():
-        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
+        lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
         logger.info(f'Serving business-agent home, authenticated: {current_user.is_authenticated}')
         if current_user.is_authenticated:
             if current_user.role == 'agent':
@@ -706,7 +707,7 @@ def create_app():
     def api_translate():
         try:
             key = request.args.get('key')
-            lang = request.args.get('lang', getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en')
+            lang = request.args.get('lang', getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en')
             supported_languages = app.config.get('SUPPORTED_LANGUAGES', ['en', 'ha'])
             if not key:
                 return jsonify({'error': utils.trans('missing_key')}), 400
@@ -727,16 +728,14 @@ def create_app():
         try:
             if current_user.is_authenticated:
                 try:
-                    current_app.extensions['mongo']['ficodb'].users.update_one(
-                        {'_id': current_user.id},
-                        {'$set': {'language': new_lang}}
-                    )
-                    current_user.lang = new_lang
+                    db = current_app.extensions['mongo']['ficodb']
+                    update_user(db, current_user.id, current_user.email, {'language': new_lang})
+                    current_user.language = new_lang
                 except Exception as e:
-                    logger.warning(f'Could not update user language for user {current_user.id}: {str(e)}')
+                    logger.warning(f'Could not update user language for user {current_user.id}/{current_user.email}: {str(e)}')
                     flash(utils.trans('invalid_lang', default='Could not update language'), 'danger')
                     return redirect(url_for('index'))
-            logger.info(f'Set language to {new_lang} for user {current_user.id if current_user.is_authenticated else "anonymous"}')
+            logger.info(f'Set language to {new_lang} for user {current_user.id if current_user.is_authenticated else "anonymous"}/{current_user.email if current_user.is_authenticated else "no-email"}')
             flash(utils.trans('lang_updated', default='Language updated successfully'), 'success')
             redirect_url = request.referrer if utils.is_safe_referrer(request.referrer, request.host) else url_for('index')
             return redirect(redirect_url)
@@ -749,7 +748,7 @@ def create_app():
     @limiter.limit('10 per minute')
     def setup_database_route():
         setup_key = request.args.get('key')
-        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
+        lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
         if not app.config.get('SETUP_KEY') or setup_key != app.config['SETUP_KEY']:
             logger.warning(f'Invalid setup key: {setup_key}')
             try:
@@ -852,7 +851,7 @@ def create_app():
     
     @app.route('/manifest.json')
     def manifest():
-        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
+        lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
         manifest_data = {
             "name": "FiCore App",
             "short_name": "FiCore",
@@ -885,7 +884,7 @@ def create_app():
     @app.errorhandler(CSRFError)
     def handle_csrf_error(e):
         logger.error(f'CSRF error: {str(e)}')
-        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
+        lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
         try:
             return render_template(
                 'error/403.html', 
@@ -902,7 +901,7 @@ def create_app():
     @app.errorhandler(404)
     def page_not_found(e):
         logger.error(f'Not found: {request.url}')
-        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
+        lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
         try:
             return render_template(
                 'personal/GENERAL/404.html', 
@@ -919,7 +918,7 @@ def create_app():
     @app.errorhandler(500)
     def internal_server_error(e):
         logger.error(f'Server error: {str(e)}')
-        lang = getattr(current_user, 'lang', 'en') if current_user.is_authenticated else 'en'
+        lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
         try:
             return render_template(
                 'personal/GENERAL/error.html', 
