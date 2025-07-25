@@ -689,7 +689,7 @@ def reset_password():
             logger.error(f"MongoDB error during password reset for {email}: {str(e)}")
             flash(trans.error('general_database_error', default='Error accessing database. Please try again later.'), 'error')
             return render_template('users/reset_password.html', form=form, token=token, title=trans('general_reset_password', lang=lang)), 500
-        except Exception as e):
+        except Exception as e:
             logger.error(f"Unexpected error during password reset for {email}: {str(e)}")
             flash(trans('general_error', default='An error occurred. Please try again.'), 'error')
             return render_template('users/reset_password.html', form=form, token=token, title=trans('general_reset_password', lang=lang)), 500
