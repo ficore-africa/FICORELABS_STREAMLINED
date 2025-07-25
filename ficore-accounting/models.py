@@ -1380,7 +1380,7 @@ def update_budget(db, budget_id: str, user_id: str, email: str, update_data: dic
         validated_data = BudgetData(**{**update_data, 'user_id': user_id, 'email': email}).dict(exclude_unset=True)
         validated_data['updated_at'] = datetime.utcnow()
         result = db.budgets.update_one(
-            {'_id': ObjectId(budget_id)}, 'user_id': user_id, 'email': email.lower()},
+            {'_id': ObjectId(budget_id), 'user_id': user_id, 'email': email.lower()},
             {'$set': validated_data}
         )
         if result.modified_count > 0:
