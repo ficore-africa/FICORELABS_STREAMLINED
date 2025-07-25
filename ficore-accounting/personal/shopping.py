@@ -298,7 +298,7 @@ def main():
                         logger.warning(f"Insufficient Ficore Credits for creating shopping list by user {current_user.id}", 
                                       extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
                         flash(trans('shopping_insufficient_credits', default='Insufficient Ficore Credits to create a list. Please purchase more credits.'), 'danger')
-                        return redirect(url_for('agents_bp.manage_credits'))
+                        return redirect(url_for('dashboard.index'))
                 try:
                     log_tool_usage(
                         tool_name='shopping',
@@ -359,7 +359,7 @@ def main():
                         logger.warning(f"Insufficient Ficore Credits for adding item to list {list_id} by user {current_user.id}", 
                                       extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
                         flash(trans('shopping_insufficient_credits', default='Insufficient Ficore Credits to add an item. Please purchase more credits.'), 'danger')
-                        return redirect(url_for('agents_bp.manage_credits'))
+                        return redirect(url_for('dashboard.index'))
                 item_data = {
                     '_id': ObjectId(),
                     'list_id': list_id,
@@ -440,7 +440,7 @@ def main():
                         logger.warning(f"Insufficient Ficore Credits for deleting list {list_id} by user {current_user.id}", 
                                       extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
                         flash(trans('shopping_insufficient_credits', default='Insufficient Ficore Credits to delete a list. Please purchase more credits.'), 'danger')
-                        return redirect(url_for('agents_bp.manage_credits'))
+                        return redirect(url_for('dashboard.index'))
                 deletion_data = {
                     'list_id': list_id,
                     'user_id': str(current_user.id) if current_user.is_authenticated else None,
@@ -586,7 +586,7 @@ def main():
                         logger.warning(f"Insufficient Ficore Credits for saving changes to list {list_id} by user {current_user.id}", 
                                       extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
                         flash(trans('shopping_insufficient_credits', default='Insufficient Ficore Credits to save changes. Please purchase more credits.'), 'danger')
-                        return redirect(url_for('agents_bp.manage_credits'))
+                        return redirect(url_for('dashboard.index'))
                 db.shopping_lists.update_one(
                     {'_id': ObjectId(list_id)},
                     {'$set': {'name': new_name, 'budget': new_budget, 'updated_at': datetime.utcnow()}}
@@ -773,7 +773,7 @@ def edit_list(list_id):
                     logger.warning(f"Insufficient Ficore Credits for editing list {list_id} by user {current_user.id}", 
                                   extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
                     flash(trans('shopping_insufficient_credits', default='Insufficient Ficore Credits to edit a list. Please purchase more credits.'), 'danger')
-                    return redirect(url_for('agents_bp.manage_credits'))
+                    return redirect(url_for('dashboard.index'))
             
             try:
                 with db.client.start_session() as mongo_session:
@@ -873,7 +873,7 @@ def export_list_pdf(list_id):
                 logger.warning(f"Insufficient Ficore Credits for exporting list {list_id} to PDF by user {current_user.id}", 
                               extra={'session_id': session.get('sid', 'no-session-id'), 'ip_address': request.remote_addr})
                 flash(trans('shopping_insufficient_credits', default='Insufficient Ficore Credits to export list to PDF. Please purchase more credits.'), 'danger')
-                return redirect(url_for('agents_bp.manage_credits'))
+                return redirect(url_for('dashboard.index'))
         try:
             log_tool_usage(
                 tool_name='shopping',
