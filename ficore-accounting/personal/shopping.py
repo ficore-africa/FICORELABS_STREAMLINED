@@ -11,6 +11,7 @@ from pymongo import errors
 from utils import get_mongo_db, requires_role, logger, clean_currency, check_ficore_credit_balance, is_admin, format_date, format_currency
 from translations import trans
 from reportlab.pdfgen import canvas
+import utils
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import inch
