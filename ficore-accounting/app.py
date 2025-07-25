@@ -39,6 +39,14 @@ from flask_compress import Compress
 import requests
 from business_finance import business
 
+
+if __name__ == '__main__':
+    logger.info('Starting Flask application')
+    app = create_app()  # Create the Flask app
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
+else:
+    app = create_app()  
+    
 # Load environment variables
 load_dotenv()
 
