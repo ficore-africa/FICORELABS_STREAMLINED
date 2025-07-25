@@ -44,7 +44,7 @@ class UserData(BaseModel):
     setup_complete: bool = False
     coin_balance: int = Field(default=10, ge=0)
     ficore_credit_balance: int = Field(default=0, ge=0)
-    language: str = Field(default='en', regex=r'^(en|ha)$')
+    language: str = Field(default='en',  pattern=r'^(en|ha)$')
     dark_mode: bool = False
     created_at: Optional[datetime] = None
     business_details: Optional[Dict] = None
@@ -58,7 +58,7 @@ class UserData(BaseModel):
 class RecordData(BaseModel):
     user_id: str
     email: EmailStr
-    type: str = Field(regex=r'^(debtor|creditor)$')
+    type: str = Field( pattern=r'^(debtor|creditor)$')
     name: str
     contact: Optional[str] = None
     amount_owed: float = Field(ge=0)
@@ -74,7 +74,7 @@ class RecordData(BaseModel):
 class CashflowData(BaseModel):
     user_id: str
     email: EmailStr
-    type: str = Field(regex=r'^(receipt|payment)$')
+    type: str = Field( pattern=r'^(receipt|payment)$')
     party_name: str
     amount: float = Field(ge=0)
     method: Optional[str] = None
@@ -110,7 +110,7 @@ class BillData(BaseModel):
     due_date: datetime
     frequency: Optional[str] = None
     category: Optional[str] = None
-    status: str = Field(regex=r'^(pending|paid|overdue)$')
+    status: str = Field( pattern=r'^(pending|paid|overdue)$')
     send_notifications: bool = False
     send_email: bool = False
     send_sms: bool = False
@@ -131,8 +131,8 @@ class ShoppingItemData(BaseModel):
     name: str
     quantity: int = Field(ge=1)
     price: float = Field(ge=0)
-    category: str = Field(regex=r'^(fruits|vegetables|dairy|meat|grains|beverages|household|other)$')
-    status: str = Field(regex=r'^(to_buy|bought)$')
+    category: str = Field( pattern=r'^(fruits|vegetables|dairy|meat|grains|beverages|household|other)$')
+    status: str = Field( pattern=r'^(to_buy|bought)$')
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     store: Optional[str] = None
@@ -152,16 +152,16 @@ class ShoppingListData(BaseModel):
     updated_at: Optional[datetime] = None
     collaborators: List[EmailStr] = []
     total_spent: float = Field(default=0, ge=0)
-    status: str = Field(regex=r'^(active|ongoing|saved)$')
+    status: str = Field( pattern=r'^(active|ongoing|saved)$')
 
     @validator('name', pre=True)
     def sanitize_name(cls, v):
         return sanitize_input(v) if v else None
 
 class AgentData(BaseModel):
-    agent_id: str = Field(regex=r'^[A-Z0-9]{8}$')
+    agent_id: str = Field( pattern=r'^[A-Z0-9]{8}$')
     email: EmailStr
-    status: str = Field(regex=r'^(active|inactive)$')
+    status: str = Field( pattern=r'^(active|inactive)$')
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
