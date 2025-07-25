@@ -239,7 +239,7 @@ def main():
                     if not check_ficore_credit_balance(required_amount=1, user_id=current_user.id):
                         current_app.logger.warning(f"Insufficient Ficore Credits for creating budget by user {current_user.id}", extra={'session_id': session.get('sid', 'unknown')})
                         flash(trans('budget_insufficient_credits', default='Insufficient Ficore Credits to create a budget. Please purchase more credits.'), 'danger')
-                        return redirect(url_for('agents_bp.manage_credits'))
+                        return redirect(url_for('dashboard.index'))
                 try:
                     log_tool_usage(
                         tool_name='budget',
@@ -348,7 +348,7 @@ def main():
                     if not check_ficore_credit_balance(required_amount=1, user_id=current_user.id):
                         current_app.logger.warning(f"Insufficient Ficore Credits for deleting budget {budget_id} by user {current_user.id}", extra={'session_id': session.get('sid', 'unknown')})
                         flash(trans('budget_insufficient_credits', default='Insufficient Ficore Credits to delete a budget. Please purchase more credits.'), 'danger')
-                        return redirect(url_for('agents_bp.manage_credits'))
+                        return redirect(url_for('dashboard.index'))
                 try:
                     log_tool_usage(
                         tool_name='budget',
