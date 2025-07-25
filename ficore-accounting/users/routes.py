@@ -636,7 +636,7 @@ def forgot_password():
         for field, errors in form.errors.items():
             for error in errors:
                 flash(f"{field}: {error}", 'error')
-    response = make_response(render_template('users/forgot_password.html', form=form, title=trans('general_send_reset_link', lang=lang))
+    response = make_response(render_template('users/forgot_password.html', form=form, title=trans('general_send_reset_link', lang=lang)))
     response.headers['Cache-Control'] = 'no-store, no-cacheing, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
