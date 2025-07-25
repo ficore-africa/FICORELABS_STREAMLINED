@@ -376,7 +376,7 @@ def main():
                             f"Deleted budget ID {budget_id} for user {current_user.id}, email {current_user.email}",
                             extra={'user_id': current_user.id, 'email': current_user.email}
                         )
-                        flash(trans("budget_deleted_success", default='Budget deleted successfully!"), "success")
+                        flash(trans("budget_deleted_success", default='Budget deleted successfully!"), "success"))
                     else:
                         current_app.logger.warning(
                             f"Budget ID {budget_id} not found for user {current_user.id}, email {current_user.email}",
