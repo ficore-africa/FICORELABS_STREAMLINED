@@ -4,6 +4,7 @@ from flask_wtf.csrf import CSRFProtect, CSRFError
 from wtforms import FloatField, IntegerField, SubmitField
 from wtforms.validators import DataRequired, NumberRange, ValidationError
 from flask_login import current_user, login_required
+import utils
 from utils import get_all_recent_activities, requires_role, is_admin, get_mongo_db, limiter, check_ficore_credit_balance
 from datetime import datetime
 import re
