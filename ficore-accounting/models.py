@@ -1,4 +1,3 @@
-```python
 from datetime import datetime
 from pymongo import ASCENDING, DESCENDING
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError, DuplicateKeyError, OperationFailure
