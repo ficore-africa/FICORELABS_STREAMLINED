@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for
 from utils import get_mongo_db, trans, requires_role, logger, is_admin
-from models import get_user, get_notification_icon
+from models import get_user
 from datetime import datetime
 from bson import ObjectId
 
