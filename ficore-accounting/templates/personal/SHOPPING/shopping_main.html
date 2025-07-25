@@ -26,10 +26,6 @@
     .dark-mode .empty-state {
         color: #adb5bd;
     }
-    .undo-timer {
-        font-size: 0.9rem;
-        margin-left: 0.5rem;
-    }
     .form-control-sm {
         font-size: 0.875rem;
         padding: 0.25rem 0.5rem;
@@ -37,6 +33,10 @@
     .dark-mode .toast {
         background-color: #343a40;
         color: #ffffff;
+    }
+    .edit-modal .modal-body input,
+    .edit-modal .modal-body select {
+        margin-bottom: 0.5rem;
     }
 </style>
 {% endblock %}
@@ -52,7 +52,7 @@
     <div class="toast-container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% for category, message in messages %}
-                <div class="toast align-items-center text-white bg-{{ 'success' if category == 'success' else 'danger' if category == 'danger' else 'warning' }} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast align-items-center text-white bg-{{ 'success' if category == 'success' else 'danger' if category == 'error' else 'warning' }} border-0" role="alert" aria-live="assertive" aria-atomic="true">
                     <div class="d-flex">
                         <div class="toast-body">
                             {{ t(message, default=message) | e }}
@@ -78,6 +78,72 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('general_close', default='Close') | e }}</button>
                     <button type="button" class="btn btn-primary" id="proceedSubmit">{{ t('shopping_proceed_anyway', default='Proceed Anyway') | e }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Item Modal -->
+    <div class="modal fade edit-modal" id="editItemModal" tabindex="-1" aria-labelledby="editItemModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editItemModalLabel">{{ t('shopping_edit_item', default='Edit Item') | e }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ t('general_close', default='Close') | e }}"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="edit-item-index">
+                    <div class="mb-3">
+                        <label for="edit-item-name" class="form-label">{{ t('general_item_name', default='Item Name') | e }}</label>
+                        <input type="text" id="edit-item-name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-item-quantity" class="form-label">{{ t('general_quantity', default='Quantity') | e }}</label>
+                        <input type="number" id="edit-item-quantity" class="form-control number-input" min="1" max="1000" required>
+                        <small class="form-text text-muted">{{ t('shopping_quantity_help', default='Enter the number of units (e.g., 2 cartons, 5 pieces)') | e }}</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-item-price" class="form-label">{{ t('general_price', default='Price') | e }}</label>
+                        <input type="text" id="edit-item-price" class="form-control number-input" required>
+                        <small class="form-text text-muted">{{ t('shopping_price_help', default='Enter price per unit (e.g., price for one carton or piece)') | e }}</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-item-unit" class="form-label">{{ t('general_unit', default='Unit') | e }}</label>
+                        <select id="edit-item-unit" class="form-control">
+                            {% for value, label in item_form.unit.choices %}
+                                <option value="{{ value | e }}">{{ t(value, default=label) | e }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-item-category" class="form-label">{{ t('general_category', default='Category') | e }}</label>
+                        <select id="edit-item-category" class="form-control">
+                            {% for value, label in item_form.category.choices %}
+                                <option value="{{ value | e }}">{{ t(value, default=label) | e }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-item-status" class="form-label">{{ t('general_status', default='Status') | e }}</label>
+                        <select id="edit-item-status" class="form-control">
+                            {% for value, label in item_form.status.choices %}
+                                <option value="{{ value | e }}">{{ t(value, default=label) | e }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-item-store" class="form-label">{{ t('general_store', default='Store') | e }}</label>
+                        <input type="text" id="edit-item-store" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-item-frequency" class="form-label">{{ t('general_frequency', default='Frequency') | e }}</label>
+                        <input type="number" id="edit-item-frequency" class="form-control number-input" min="1" max="365">
+                        <small class="form-text text-muted">{{ t('shopping_frequency_help', default='Enter frequency in days (e.g., 7)') | e }}</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ t('general_cancel', default='Cancel') | e }}</button>
+                    <button type="button" class="btn btn-primary" id="saveEditItem">{{ t('shopping_save_changes', default='Save Changes') | e }}</button>
                 </div>
             </div>
         </div>
@@ -114,7 +180,7 @@
                     <h5><i class="fa-solid fa-cart-shopping"></i> {{ t('shopping_create_list', default='Create New Shopping List') | e }}</h5>
                 </div>
                 <div class="card-body">
-                    <form method="POST" action="{{ url_for('personal.shopping.main', tab='create-list') | e }}" id="createListForm" class="validate-form">
+                    <form method="POST" action="{{ url_for('personal.shopping.main', tab='dashboard') | e }}" id="createListForm" class="validate-form">
                         {{ list_form.hidden_tag() }}
                         <input type="hidden" name="action" value="create_list">
                         <div class="mb-3">
@@ -124,9 +190,9 @@
                         </div>
                         <div class="mb-3">
                             <label for="{{ list_form.budget.id }}" class="form-label">{{ t('general_budget', default='Budget') | e }}</label>
-                            {{ list_form.budget(class="form-control number-input", placeholder=t('shopping_budget_placeholder', default='e.g., 50,000.00') | e, value='' if list_form.budget.data is none else format_currency(list_form.budget.data)) }}
-                            <div class="invalid-feedback">{{ t('shopping_budget_invalid', default='Please enter a valid number (e.g., 50000 or 50000.00)') | e }}</div>
-                            <small id="budget_help" class="form-text text-muted">{{ t('shopping_budget_help', default='Enter your budget (e.g., 50,000 or 50,000.00)') | e }}</small>
+                            {{ list_form.budget(class="form-control number-input", placeholder=t('shopping_budget_placeholder', default='e.g., 100,000.00') | e, value='' if list_form.budget.data is none else format_currency(list_form.budget.data)) }}
+                            <div class="invalid-feedback">{{ t('shopping_budget_invalid', default='Please enter a valid number (e.g., 100000 or 100000.00)') | e }}</div>
+                            <small id="budget_help" class="form-text text-muted">{{ t('shopping_budget_help', default='Enter your budget (e.g., 100,000 or 100,000.00)') | e }}</small>
                         </div>
                         <button type="submit" class="btn btn-primary" id="createListSubmit">
                             <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
@@ -143,195 +209,166 @@
                     <h5><i class="fa-solid fa-chart-line"></i> {{ t('shopping_dashboard', default='Shopping List Dashboard') | e }}</h5>
                 </div>
                 <div class="card-body">
-                    {% if latest_list.id %}
-                        <div class="mb-4">
-                            <h6>{{ t('shopping_latest_list', default='Latest Shopping List') | e }}</h6>
-                            <p><strong>{{ t('general_list_name', default='List Name') | e }}:</strong> {{ latest_list.name | e }}</p>
-                            <p><strong>{{ t('general_budget', default='Budget') | e }}:</strong> {{ format_currency(latest_list.budget) | e }}</p>
-                            <p><strong>{{ t('general_total_spent', default='Total Spent') | e }}:</strong> {{ format_currency(latest_list.total_spent) | e }}</p>
-                            {% set remaining = latest_list.budget_raw - latest_list.total_spent_raw %}
-                            <p>
-                                <strong>{{ t('general_remaining', default='Remaining') | e }}:</strong>
-                                {% if remaining >= 0 %}
-                                    {{ format_currency(remaining) | e }}
-                                {% else %}
-                                    {{ t('general_over_by', default='Over by') | e }}: {{ format_currency(-remaining) | e }}
-                                {% endif %}
-                            </p>
-                            <div class="progress">
-                                <div class="progress-bar" role="progressbar" style="width: {{ (latest_list.total_spent_raw / latest_list.budget_raw * 100) if latest_list.budget_raw > 0 else 0 }}%" id="budget-progress-static" aria-valuenow="{{ (latest_list.total_spent_raw / latest_list.budget_raw * 100) if latest_list.budget_raw > 0 else 0 }}" aria-valuemin="0" aria-valuemax="100"></div>
-                            </div>
-                            <p><strong>{{ t('general_status', default='Status') | e }}:</strong> {{ t(latest_list.status, default=latest_list.status) | e }}</p>
-                            <p><strong>{{ t('general_collaborators', default='Collaborators') | e }}:</strong> {{ latest_list.collaborators|join(', ') or t('general_none', default='None') | e }}</p>
-                            <p><strong>{{ t('general_date', default='Created At') | e }}:</strong> {{ latest_list.created_at | format_datetime | e }}</p>
-                            <div class="mt-2">
-                                {% if latest_list.status != 'saved' %}
-                                    <form method="POST" action="{{ url_for('personal.shopping.main', tab='dashboard') | e }}" class="d-inline validate-form">
-                                        <input type="hidden" name="action" value="save_list">
-                                        <input type="hidden" name="list_id" value="{{ latest_list.id | e }}">
-                                        {{ list_form.csrf_token }}
-                                        <button type="submit" class="btn btn-primary btn-sm" id="saveListSubmit">
-                                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                                            <i class="fa-solid fa-floppy-disk"></i> {{ t('shopping_save_list', default='Save List') | e }}
-                                        </button>
-                                    </form>
-                                {% endif %}
-                                <a href="{{ url_for('personal.shopping.export_list_pdf', list_id=latest_list.id) | e }}" class="btn btn-success btn-sm"><i class="fa-solid fa-file-pdf"></i> {{ t('shopping_export_pdf', default='Export to PDF') | e }}</a>
-                                <form method="POST" action="{{ url_for('personal.shopping.main', tab='dashboard') | e }}" class="d-inline validate-form">
-                                    <input type="hidden" name="action" value="delete_list">
-                                    <input type="hidden" name="list_id" value="{{ latest_list.id | e }}">
-                                    {{ list_form.csrf_token }}
-                                    <button type="submit" class="btn btn-danger btn-sm" id="deleteListSubmit" onclick="return confirm('{{ t('shopping_confirm_delete', default='Are you sure you want to delete this list?') | e }}');">
-                                        <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                                        <i class="fa-solid fa-trash"></i> {{ t('shopping_delete_list', default='Delete List') | e }}
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h6><i class="fa-solid fa-cart-plus"></i> {{ t('shopping_add_item', default='Add Item to List') | e }}</h6>
-                            </div>
-                            <div class="card-body">
-                                <form method="POST" action="{{ url_for('personal.shopping.main', tab='dashboard') | e }}" id="addItemForm" class="validate-form">
-                                    {{ item_form.hidden_tag() }}
-                                    <input type="hidden" name="action" value="add_item">
-                                    <input type="hidden" name="list_id" value="{{ latest_list.id | e }}">
-                                    <div class="row">
-                                        <div class="col-md-6 mb-3">
-                                            <label for="{{ item_form.name.id }}" class="form-label">{{ t('general_item_name', default='Item Name') | e }}</label>
-                                            {{ item_form.name(class="form-control", placeholder=t('shopping_item_name_placeholder', default='e.g., Milk') | e) }}
-                                            <div class="invalid-feedback">{{ t('shopping_item_name_invalid', default='Please enter a valid item name') | e }}</div>
-                                        </div>
-                                        <div class="col-md-6 mb-3">
-                                            <label for="{{ item_form.quantity.id }}" class="form-label">{{ t('general_quantity', default='Quantity') | e }}</label>
-                                            {{ item_form.quantity(class="form-control number-input", placeholder=t('shopping_quantity_placeholder', default='e.g., 2') | e, value='' if item_form.quantity.data is none else item_form.quantity.data) }}
-                                            <div class="invalid-feedback">{{ t('shopping_quantity_invalid', default='Please enter a valid number (e.g., 2)') | e }}</div>
-                                            <small id="quantity_help" class="form-text text-muted">{{ t('shopping_quantity_help', default='Enter the number of units (e.g., 2 cartons, 5 pieces)') | e }}</small>
-                                        </div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-6 mb-3">
-                                            <label for="{{ item_form.price.id }}" class="form-label">{{ t('general_price', default='Price') | e }}</label>
-                                            {{ item_form.price(class="form-control number-input", placeholder=t('shopping_price_placeholder', default='e.g., 500.00') | e, value='' if item_form.price.data is none else format_currency(item_form.price.data)) }}
-                                            <div class="invalid-feedback">{{ t('shopping_price_invalid', default='Please enter a valid number (e.g., 500 or 500.00)') | e }}</div>
-                                            <small id="price_help" class="form-text text-muted">{{ t('shopping_price_help', default='Enter price per unit (e.g., price for one carton or piece)') | e }}</small>
-                                        </div>
-                                        <div class="col-md-6 mb-3">
-                                            <label for="{{ item_form.unit.id }}" class="form-label">{{ t('general_unit', default='Unit') | e }}</label>
-                                            {{ item_form.unit(class="form-control") }}
-                                            <div class="invalid-feedback">{{ t('shopping_unit_invalid', default='Please select a unit') | e }}</div>
-                                            <small id="unit_help" class="form-text text-muted">{{ t('shopping_unit_help', default='Select the unit of measurement (e.g., Piece, Carton)') | e }}</small>
-                                        </div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-6 mb-3">
-                                            <label for="{{ item_form.store.id }}" class="form-label">{{ t('general_store', default='Store') | e }}</label>
-                                            {{ item_form.store(class="form-control", placeholder=t('shopping_store_placeholder', default='e.g., Shoprite') | e) }}
-                                            <div class="invalid-feedback">{{ t('shopping_store_invalid', default='Please enter a valid store name') | e }}</div>
-                                        </div>
-                                        <div class="col-md-6 mb-3">
-                                            <label for="{{ item_form.category.id }}" class="form-label">{{ t('general_category', default='Category') | e }}</label>
-                                            {{ item_form.category(class="form-control") }}
-                                            <div class="invalid-feedback">{{ t('shopping_category_invalid', default='Please select a category') | e }}</div>
-                                        </div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-6 mb-3">
-                                            <label for="{{ item_form.status.id }}" class="form-label">{{ t('general_status', default='Status') | e }}</label>
-                                            {{ item_form.status(class="form-control") }}
-                                            <div class="invalid-feedback">{{ t('shopping_status_invalid', default='Please select a status') | e }}</div>
-                                        </div>
-                                        <div class="col-md-6 mb-3">
-                                            <label for="{{ item_form.frequency.id }}" class="form-label">{{ t('general_frequency', default='Frequency') | e }}</label>
-                                            {{ item_form.frequency(class="form-control number-input", placeholder=t('shopping_frequency_placeholder', default='e.g., 7') | e, value='' if item_form.frequency.data is none else item_form.frequency.data) }}
-                                            <div class="invalid-feedback">{{ t('shopping_frequency_invalid', default='Please enter a valid number of days (e.g., 7)') | e }}</div>
-                                            <small id="frequency_help" class="form-text text-muted">{{ t('shopping_frequency_help', default='Enter frequency in days (e.g., 7)') | e }}</small>
-                                        </div>
-                                    </div>
-                                    <button type="submit" class="btn btn-primary" id="addItemSubmit">
-                                        <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                                        <i class="fa-solid fa-cart-plus"></i> {{ t('shopping_add_item', default='Add Item') | e }}
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h6><i class="fa-solid fa-share-nodes"></i> {{ t('shopping_share_list', default='Share List') | e }}</h6>
-                            </div>
-                            <div class="card-body">
-                                <form method="POST" action="{{ url_for('personal.shopping.main', tab='dashboard') | e }}" id="shareListForm" class="validate-form">
-                                    {{ share_form.hidden_tag() }}
-                                    <input type="hidden" name="action" value="share_list">
-                                    <input type="hidden" name="list_id" value="{{ latest_list.id | e }}">
-                                    <div class="mb-3">
-                                        <label for="{{ share_form.email.id }}" class="form-label">{{ t('general_email', default='Email') | e }}</label>
-                                        {{ share_form.email(class="form-control", placeholder=t('shopping_email_placeholder', default='e.g., friend@example.com') | e) }}
-                                        <div class="invalid-feedback">{{ t('shopping_email_invalid', default='Please enter a valid email address') | e }}</div>
-                                    </div>
-                                    <button type="submit" class="btn btn-primary" id="shareListSubmit">
-                                        <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                                        <i class="fa-solid fa-share"></i> {{ t('shopping_share_list', default='Share List') | e }}
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h6><i class="fa-solid fa-list"></i> {{ t('shopping_items', default='Items') | e }}</h6>
-                            </div>
-                            <div class="card-body">
-                                {% if items %}
-                                    <div class="table-responsive">
-                                        <table class="table table-striped">
-                                            <thead>
-                                                <tr>
-                                                    <th>{{ t('general_item_name', default='Item Name') | e }}</th>
-                                                    <th>{{ t('general_quantity', default='Quantity') | e }}</th>
-                                                    <th>{{ t('general_price', default='Price') | e }}</th>
-                                                    <th>{{ t('general_unit', default='Unit') | e }}</th>
-                                                    <th>{{ t('general_category', default='Category') | e }}</th>
-                                                    <th>{{ t('general_status', default='Status') | e }}</th>
-                                                    <th>{{ t('general_store', default='Store') | e }}</th>
-                                                    <th>{{ t('general_frequency', default='Frequency') | e }}</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {% for item in items %}
-                                                    <tr>
-                                                        <td>{{ item.name | e }}</td>
-                                                        <td>{{ item.quantity }}</td>
-                                                        <td>{{ format_currency(item.price) | e }}</td>
-                                                        <td>{{ t(item.unit, default=item.unit) | e }}</td>
-                                                        <td>{{ t(item.category, default=item.category) | e }}</td>
-                                                        <td>{{ t(item.status, default=item.status) | e }}</td>
-                                                        <td>{{ item.store | e }}</td>
-                                                        <td>{{ item.frequency }} {{ t('general_days', default='days') | e }}</td>
-                                                    </tr>
-                                                {% endfor %}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                {% else %}
-                                    <div class="empty-state text-center">
-                                        <i class="fa-solid fa-cart-shopping fa-3x mb-3"></i>
-                                        <p>{{ t('shopping_empty_list', default='Your shopping list is empty. Add items to get started!') | e }}</p>
-                                    </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    {% else %}
-                        <div class="empty-state text-center">
-                            <i class="fa-solid fa-cart-shopping fa-3x mb-3"></i>
-                            <p>{{ t('shopping_no_lists', default='No shopping lists found. Create one to get started.') | e }}</p>
-                        </div>
-                    {% endif %}
-
                     {% if lists %}
+                        <div class="mb-3">
+                            <label for="list-select" class="form-label">{{ t('shopping_select_list', default='Select a Shopping List') | e }}</label>
+                            <select id="list-select" class="form-select" onchange="loadListDetails(this.value, 'dashboard')">
+                                <option value="">{{ t('general_select', default='Select a list') | e }}</option>
+                                {% for list_id, lst in lists.items() %}
+                                    <option value="{{ lst.id | e }}" {{ 'selected' if selected_list_id == lst.id else '' }}>{{ lst.name | e }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div id="list-details">
+                            {% if selected_list and selected_list.id and selected_list.status != 'saved' %}
+                                <h6>{{ t('shopping_list_details', default='List Details') | e }}: {{ selected_list.name | e }}</h6>
+                                <p><strong>{{ t('general_budget', default='Budget') | e }}:</strong> <span id="budget-amount">{{ format_currency(selected_list.budget) | e }}</span></p>
+                                <p><strong>{{ t('general_total_spent', default='Total Spent') | e }}:</strong> <span id="total-spent">{{ format_currency(0) | e }}</span></p>
+                                <p><strong>{{ t('general_remaining', default='Remaining') | e }}:</strong> <span id="remaining-budget">{{ format_currency(selected_list.budget) | e }}</span></p>
+                                <div class="progress">
+                                    <div class="progress-bar" role="progressbar" style="width: 0%" id="budget-progress" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <p><strong>{{ t('general_status', default='Status') | e }}:</strong> {{ t(selected_list.status, default=selected_list.status) | e }}</p>
+                                <p><strong>{{ t('general_collaborators', default='Collaborators') | e }}:</strong> {{ selected_list.collaborators|join(', ') or t('general_none', default='None') | e }}</p>
+                                <p><strong>{{ t('general_date', default='Created At') | e }}:</strong> {{ selected_list.created_at | format_datetime | e }}</p>
+
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6><i class="fa-solid fa-cart-plus"></i> {{ t('shopping_add_item', default='Add Item to List') | e }}</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <form id="addItemForm" class="validate-form">
+                                            <input type="hidden" name="list_id" value="{{ selected_list.id | e }}">
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="item_name" class="form-label">{{ t('general_item_name', default='Item Name') | e }}</label>
+                                                    <input type="text" id="item_name" class="form-control" placeholder="{{ t('shopping_item_name_placeholder', default='e.g., Milk') | e }}" required>
+                                                    <div class="invalid-feedback">{{ t('shopping_item_name_invalid', default='Please enter a valid item name') | e }}</div>
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="item_quantity" class="form-label">{{ t('general_quantity', default='Quantity') | e }}</label>
+                                                    <input type="number" id="item_quantity" class="form-control number-input" placeholder="{{ t('shopping_quantity_placeholder', default='e.g., 2') | e }}" min="1" max="1000" required>
+                                                    <small class="form-text text-muted">{{ t('shopping_quantity_help', default='Enter the number of units (e.g., 2 cartons, 5 pieces)') | e }}</small>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="item_price" class="form-label">{{ t('general_price', default='Price') | e }}</label>
+                                                    <input type="text" id="item_price" class="form-control number-input" placeholder="{{ t('shopping_price_placeholder', default='e.g., 500.00') | e }}" required>
+                                                    <small class="form-text text-muted">{{ t('shopping_price_help', default='Enter price per unit (e.g., price for one carton or piece)') | e }}</small>
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="item_unit" class="form-label">{{ t('general_unit', default='Unit') | e }}</label>
+                                                    <select id="item_unit" class="form-control" required>
+                                                        {% for value, label in item_form.unit.choices %}
+                                                            <option value="{{ value | e }}">{{ t(value, default=label) | e }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="item_store" class="form-label">{{ t('general_store', default='Store') | e }}</label>
+                                                    <input type="text" id="item_store" class="form-control" placeholder="{{ t('shopping_store_placeholder', default='e.g., Shoprite') | e }}">
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="item_category" class="form-label">{{ t('general_category', default='Category') | e }}</label>
+                                                    <select id="item_category" class="form-control" required>
+                                                        {% for value, label in item_form.category.choices %}
+                                                            <option value="{{ value | e }}">{{ t(value, default=label) | e }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="item_status" class="form-label">{{ t('general_status', default='Status') | e }}</label>
+                                                    <select id="item_status" class="form-control" required>
+                                                        {% for value, label in item_form.status.choices %}
+                                                            <option value="{{ value | e }}">{{ t(value, default=label) | e }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label for="item_frequency" class="form-label">{{ t('general_frequency', default='Frequency') | e }}</label>
+                                                    <input type="number" id="item_frequency" class="form-control number-input" placeholder="{{ t('shopping_frequency_placeholder', default='e.g., 7') | e }}" min="1" max="365">
+                                                    <small class="form-text text-muted">{{ t('shopping_frequency_help', default='Enter frequency in days (e.g., 7)') | e }}</small>
+                                                </div>
+                                            </div>
+                                            <button type="button" class="btn btn-primary" id="addItemSubmit">
+                                                <i class="fa-solid fa-cart-plus"></i> {{ t('shopping_add_item', default='Add Item') | e }}
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6><i class="fa-solid fa-list"></i> {{ t('shopping_items', default='Items') | e }}</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-striped" id="items-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>{{ t('general_item_name', default='Item Name') | e }}</th>
+                                                        <th>{{ t('general_quantity', default='Quantity') | e }}</th>
+                                                        <th>{{ t('general_price', default='Price') | e }}</th>
+                                                        <th>{{ t('general_unit', default='Unit') | e }}</th>
+                                                        <th>{{ t('general_category', default='Category') | e }}</th>
+                                                        <th>{{ t('general_status', default='Status') | e }}</th>
+                                                        <th>{{ t('general_store', default='Store') | e }}</th>
+                                                        <th>{{ t('general_frequency', default='Frequency') | e }}</th>
+                                                        <th>{{ t('general_actions', default='Actions') | e }}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="items-table-body">
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div class="mt-3">
+                                            <form method="POST" action="{{ url_for('personal.shopping.main', tab='dashboard') | e }}" class="d-inline validate-form" id="saveListForm">
+                                                <input type="hidden" name="action" value="save_list">
+                                                <input type="hidden" name="list_id" value="{{ selected_list.id | e }}">
+                                                {{ list_form.csrf_token }}
+                                                <button type="submit" class="btn btn-primary" id="saveListSubmit">
+                                                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                                    <i class="fa-solid fa-floppy-disk"></i> {{ t('shopping_save_list', default='Save List') | e }}
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6><i class="fa-solid fa-share-nodes"></i> {{ t('shopping_share_list', default='Share List') | e }}</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <form method="POST" action="{{ url_for('personal.shopping.main', tab='dashboard') | e }}" id="shareListForm" class="validate-form">
+                                            {{ share_form.hidden_tag() }}
+                                            <input type="hidden" name="action" value="share_list">
+                                            <input type="hidden" name="list_id" value="{{ selected_list.id | e }}">
+                                            <div class="mb-3">
+                                                <label for="{{ share_form.email.id }}" class="form-label">{{ t('general_email', default='Email') | e }}</label>
+                                                {{ share_form.email(class="form-control", placeholder=t('shopping_email_placeholder', default='e.g., friend@example.com') | e) }}
+                                                <div class="invalid-feedback">{{ t('shopping_email_invalid', default='Please enter a valid email address') | e }}</div>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary" id="shareListSubmit">
+                                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                                <i class="fa-solid fa-share"></i> {{ t('shopping_share_list', default='Share List') | e }}
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="empty-state text-center">
+                                    <i class="fa-solid fa-cart-shopping fa-3x mb-3"></i>
+                                    <p>{{ t('shopping_no_list_selected', default='No list selected or the selected list is saved. Please select an unsaved list to manage.') | e }}</p>
+                                </div>
+                            {% endif %}
+                        </div>
+
                         <div class="card mb-4">
                             <div class="card-header">
                                 <h6><i class="fa-solid fa-list-alt"></i> {{ t('shopping_all_lists', default='All Shopping Lists') | e }}</h6>
@@ -345,6 +382,7 @@
                                                 <th>{{ t('general_budget', default='Budget') | e }}</th>
                                                 <th>{{ t('general_total_spent', default='Total Spent') | e }}</th>
                                                 <th>{{ t('general_status', default='Status') | e }}</th>
+                                                <th>{{ t('general_actions', default='Actions') | e }}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -354,12 +392,33 @@
                                                     <td>{{ format_currency(lst.budget) | e }}</td>
                                                     <td>{{ format_currency(lst.total_spent) | e }}</td>
                                                     <td>{{ t(lst.status, default=lst.status) | e }}</td>
+                                                    <td>
+                                                        <a href="{{ url_for('personal.shopping.main', tab='dashboard', list_id=lst.id) | e }}" class="btn btn-primary btn-sm"><i class="fa-solid fa-eye"></i> {{ t('general_view', default='View') | e }}</a>
+                                                        {% if lst.status == 'saved' %}
+                                                            <a href="{{ url_for('personal.shopping.main', tab='manage-list', list_id=lst.id) | e }}" class="btn btn-primary btn-sm"><i class="fa-solid fa-pen-to-square"></i> {{ t('shopping_edit_list', default='Edit List') | e }}</a>
+                                                        {% endif %}
+                                                        <a href="{{ url_for('personal.shopping.export_list_pdf', list_id=lst.id) | e }}" class="btn btn-success btn-sm"><i class="fa-solid fa-file-pdf"></i> {{ t('shopping_export_pdf', default='Export to PDF') | e }}</a>
+                                                        <form method="POST" action="{{ url_for('personal.shopping.main', tab='dashboard') | e }}" class="d-inline validate-form">
+                                                            <input type="hidden" name="action" value="delete_list">
+                                                            <input type="hidden" name="list_id" value="{{ lst.id | e }}">
+                                                            {{ list_form.csrf_token }}
+                                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('{{ t('shopping_confirm_delete', default='Are you sure you want to delete this list?') | e }}');">
+                                                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                                                <i class="fa-solid fa-trash"></i> {{ t('shopping_delete_list', default='Delete List') | e }}
+                                                            </button>
+                                                        </form>
+                                                    </td>
                                                 </tr>
                                             {% endfor %}
                                         </tbody>
                                     </table>
                                 </div>
                             </div>
+                        </div>
+                    {% else %}
+                        <div class="empty-state text-center">
+                            <i class="fa-solid fa-cart-shopping fa-3x mb-3"></i>
+                            <p>{{ t('shopping_no_lists', default='No shopping lists found. Create one to get started.') | e }}</p>
                         </div>
                     {% endif %}
 
@@ -392,21 +451,6 @@
                             </div>
                         </div>
                     {% endif %}
-
-                    {% if insights %}
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h6><i class="fa-solid fa-lightbulb"></i> {{ t('shopping_insights', default='Insights') | e }}</h6>
-                            </div>
-                            <div class="card-body">
-                                <ul class="list-unstyled">
-                                    {% for insight in insights %}
-                                        <li><i class="fa-solid fa-lightbulb text-warning"></i> {{ t(insight, default=insight) | e }}</li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                        </div>
-                    {% endif %}
                 </div>
             </div>
         </div>
@@ -419,218 +463,164 @@
                 <div class="card-body">
                     {% if lists %}
                         <div class="mb-3">
-                            <label for="list-select" class="form-label">{{ t('shopping_select_list', default='Select a Shopping List') | e }}</label>
-                            <select id="list-select" class="form-select" onchange="loadListDetails(this.value)">
+                            <label for="manage-list-select" class="form-label">{{ t('shopping_select_list', default='Select a Shopping List') | e }}</label>
+                            <select id="manage-list-select" class="form-select" onchange="loadListDetails(this.value, 'manage-list')">
                                 <option value="">{{ t('general_select', default='Select a list') | e }}</option>
                                 {% for list_id, lst in lists.items() %}
-                                    <option value="{{ lst.id | e }}" {{ 'selected' if latest_list.id == lst.id else '' }}>{{ lst.name | e }}</option>
+                                    <option value="{{ lst.id | e }}" {{ 'selected' if selected_list_id == lst.id else '' }}>{{ lst.name | e }}</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        <div id="list-details">
-                            {% if latest_list and latest_list.id %}
+                        <div id="manage-list-details">
+                            {% if selected_list and selected_list.id and selected_list.status == 'saved' %}
                                 <form method="POST" action="{{ url_for('personal.shopping.main', tab='manage-list') | e }}" id="manageListForm" class="validate-form">
                                     {{ list_form.hidden_tag() }}
                                     <input type="hidden" name="action" value="save_list_changes">
-                                    <input type="hidden" name="list_id" value="{{ latest_list.id | e }}">
-                                    <h6>{{ t('shopping_list_details', default='List Details') | e }}</h6>
+                                    <input type="hidden" name="list_id" value="{{ selected_list.id | e }}">
+                                    <h6>{{ t('shopping_list_details', default='List Details') | e }}: {{ selected_list.name | e }}</h6>
                                     <div class="mb-3">
                                         <label for="list_name" class="form-label">{{ t('general_list_name', default='List Name') | e }}</label>
-                                        <input type="text" name="list_name" id="list_name" class="form-control" value="{{ latest_list.name | e }}" required>
+                                        <input type="text" name="list_name" id="list_name" class="form-control" value="{{ selected_list.name | e }}" required>
                                         <div class="invalid-feedback">{{ t('shopping_list_name_invalid', default='Please enter a valid list name') | e }}</div>
                                     </div>
                                     <div class="mb-3">
                                         <label for="list_budget" class="form-label">{{ t('general_budget', default='Budget') | e }}</label>
-                                        <input type="text" name="list_budget" id="list_budget" class="form-control number-input" value="{{ format_currency(latest_list.budget) | e }}" required>
-                                        <div class="invalid-feedback">{{ t('shopping_budget_invalid', default='Please enter a valid number (e.g., 50000 or 50000.00)') | e }}</div>
-                                        <small class="form-text text-muted">{{ t('shopping_budget_help', default='Enter your budget (e.g., 50,000 or 50,000.00)') | e }}</small>
+                                        <input type="text" name="list_budget" id="list_budget" class="form-control number-input" value="{{ format_currency(selected_list.budget) | e }}" required>
+                                        <div class="invalid-feedback">{{ t('shopping_budget_invalid', default='Please enter a valid number (e.g., 100000 or 100000.00)') | e }}</div>
+                                        <small class="form-text text-muted">{{ t('shopping_budget_help', default='Enter your budget (e.g., 100,000 or 100,000.00)') | e }}</small>
                                     </div>
-                                    <p><strong>{{ t('general_total_spent', default='Total Spent') | e }}:</strong> <span id="total-spent">{{ format_currency(latest_list.total_spent) | e }}</span></p>
-                                    {% set remaining = latest_list.budget_raw - latest_list.total_spent_raw %}
-                                    <p>
-                                        <strong>{{ t('general_remaining', default='Remaining') | e }}:</strong>
-                                        <span id="remaining-budget">
-                                            {% if remaining >= 0 %}
-                                                {{ format_currency(remaining) | e }}
-                                            {% else %}
-                                                {{ t('general_over_by', default='Over by') | e }}: {{ format_currency(-remaining) | e }}
-                                            {% endif %}
-                                        </span>
-                                    </p>
+                                    <p><strong>{{ t('general_total_spent', default='Total Spent') | e }}:</strong> <span id="total-spent">{{ format_currency(selected_list.total_spent) | e }}</span></p>
+                                    <p><strong>{{ t('general_remaining', default='Remaining') | e }}:</strong> <span id="remaining-budget">{{ format_currency(selected_list.budget - selected_list.total_spent) | e }}</span></p>
                                     <div class="progress">
-                                        <div class="progress-bar" role="progressbar" style="width: {{ (latest_list.total_spent_raw / latest_list.budget_raw * 100) if latest_list.budget_raw > 0 else 0 }}%" id="budget-progress" aria-valuenow="{{ (latest_list.total_spent_raw / latest_list.budget_raw * 100) if latest_list.budget_raw > 0 else 0 }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                        <div class="progress-bar" role="progressbar" style="width: {{ (selected_list.total_spent / selected_list.budget * 100) if selected_list.budget > 0 else 0 }}%" id="budget-progress" aria-valuenow="{{ (selected_list.total_spent / selected_list.budget * 100) if selected_list.budget > 0 else 0 }}" aria-valuemin="0" aria-valuemax="100"></div>
                                     </div>
-                                    <p><strong>{{ t('general_status', default='Status') | e }}:</strong> {{ t(latest_list.status, default=latest_list.status) | e }}</p>
-                                    <p><strong>{{ t('general_collaborators', default='Collaborators') | e }}:</strong> {{ latest_list.collaborators|join(', ') or t('general_none', default='None') | e }}</p>
-                                    <p><strong>{{ t('general_date', default='Created At') | e }}:</strong> {{ latest_list.created_at | format_datetime | e }}</p>
-                                    <div class="mt-2 mb-4">
-                                        <a href="{{ url_for('personal.shopping.edit_list', list_id=latest_list.id) | e }}" class="btn btn-primary btn-sm"><i class="fa-solid fa-pen-to-square"></i> {{ t('shopping_edit_list', default='Edit List') | e }}</a>
-                                        {% if latest_list.status != 'saved' %}
-                                            <form method="POST" action="{{ url_for('personal.shopping.main', tab='manage-list') | e }}" class="d-inline validate-form">
-                                                <input type="hidden" name="action" value="save_list">
-                                                <input type="hidden" name="list_id" value="{{ latest_list.id | e }}">
-                                                {{ list_form.csrf_token }}
-                                                <button type="submit" class="btn btn-primary btn-sm" id="saveListManageSubmit">
-                                                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                                                    <i class="fa-solid fa-floppy-disk"></i> {{ t('shopping_save_list', default='Save List') | e }}
-                                                </button>
-                                            </form>
-                                        {% endif %}
-                                        <a href="{{ url_for('personal.shopping.export_list_pdf', list_id=latest_list.id) | e }}" class="btn btn-success btn-sm"><i class="fa-solid fa-file-pdf"></i> {{ t('shopping_export_pdf', default='Export to PDF') | e }}</a>
-                                        <form method="POST" action="{{ url_for('personal.shopping.main', tab='manage-list') | e }}" class="d-inline validate-form">
-                                            <input type="hidden" name="action" value="delete_list">
-                                            <input type="hidden" name="list_id" value="{{ latest_list.id | e }}">
-                                            {{ list_form.csrf_token }}
-                                            <button type="submit" class="btn btn-danger btn-sm" id="deleteListManageSubmit" onclick="return confirm('{{ t('shopping_confirm_delete', default='Are you sure you want to delete this list?') | e }}');">
-                                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                                                <i class="fa-solid fa-trash"></i> {{ t('shopping_delete_list', default='Delete List') | e }}
-                                            </button>
-                                        </form>
-                                    </div>
+                                    <p><strong>{{ t('general_status', default='Status') | e }}:</strong> {{ t(selected_list.status, default=selected_list.status) | e }}</p>
+                                    <p><strong>{{ t('general_collaborators', default='Collaborators') | e }}:</strong> {{ selected_list.collaborators|join(', ') or t('general_none', default='None') | e }}</p>
+                                    <p><strong>{{ t('general_date', default='Created At') | e }}:</strong> {{ selected_list.created_at | format_datetime | e }}</p>
 
-                                    <h6>{{ t('shopping_items', default='Items') | e }}</h6>
-                                    {% if items %}
-                                        <div class="table-responsive">
-                                            <table class="table table-striped">
-                                                <thead>
-                                                    <tr>
-                                                        <th>{{ t('general_delete', default='Delete') | e }}</th>
-                                                        <th>{{ t('general_item_name', default='Item Name') | e }}</th>
-                                                        <th>{{ t('general_quantity', default='Quantity') | e }}</th>
-                                                        <th>{{ t('general_price', default='Price') | e }}</th>
-                                                        <th>{{ t('general_unit', default='Unit') | e }}</th>
-                                                        <th>{{ t('general_category', default='Category') | e }}</th>
-                                                        <th>{{ t('general_status', default='Status') | e }}</th>
-                                                        <th>{{ t('general_store', default='Store') | e }}</th>
-                                                        <th>{{ t('general_frequency', default='Frequency') | e }}</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {% for item in items %}
-                                                        <tr>
-                                                            <td>
-                                                                <input type="checkbox" name="delete_{{ item.id | e }}" class="form-check-input">
-                                                            </td>
-                                                            <td>
-                                                                <input type="text" name="item_{{ item.id | e }}_name" class="form-control form-control-sm" value="{{ item.name | e }}" required>
-                                                            </td>
-                                                            <td>
-                                                                <input type="number" name="item_{{ item.id | e }}_quantity" class="form-control form-control-sm number-input item-quantity" value="{{ item.quantity }}" min="1" max="1000" required>
-                                                                <small class="form-text text-muted">{{ t('shopping_quantity_help', default='Enter the number of units (e.g., 2 cartons, 5 pieces)') | e }}</small>
-                                                            </td>
-                                                            <td>
-                                                                <input type="text" name="item_{{ item.id | e }}_price" class="form-control form-control-sm number-input item-price" value="{{ format_currency(item.price) | e }}" required>
-                                                                <small class="form-text text-muted">{{ t('shopping_price_help', default='Enter price per unit (e.g., price for one carton or piece)') | e }}</small>
-                                                            </td>
-                                                            <td>
-                                                                <select name="item_{{ item.id | e }}_unit" class="form-control form-control-sm">
-                                                                    {% for value, label in item_form.unit.choices %}
-                                                                        <option value="{{ value | e }}" {{ 'selected' if value == item.unit else '' }}>{{ t(value, default=label) | e }}</option>
-                                                                    {% endfor %}
-                                                                </select>
-                                                                <small class="form-text text-muted">{{ t('shopping_unit_help', default='Select the unit of measurement (e.g., Piece, Carton)') | e }}</small>
-                                                            </td>
-                                                            <td>
-                                                                <select name="item_{{ item.id | e }}_category" class="form-control form-control-sm">
-                                                                    {% for value, label in item_form.category.choices %}
-                                                                        <option value="{{ value | e }}" {{ 'selected' if value == item.category else '' }}>{{ t(value, default=label) | e }}</option>
-                                                                    {% endfor %}
-                                                                </select>
-                                                            </td>
-                                                            <td>
-                                                                <select name="item_{{ item.id | e }}_status" class="form-control form-control-sm">
-                                                                    {% for value, label in item_form.status.choices %}
-                                                                        <option value="{{ value | e }}" {{ 'selected' if value == item.status else '' }}>{{ t(value, default=label) | e }}</option>
-                                                                    {% endfor %}
-                                                                </select>
-                                                            </td>
-                                                            <td>
-                                                                <input type="text" name="item_{{ item.id | e }}_store" class="form-control form-control-sm" value="{{ item.store | e }}" required>
-                                                            </td>
-                                                            <td>
-                                                                <input type="number" name="item_{{ item.id | e }}_frequency" class="form-control form-control-sm number-input" value="{{ item.frequency }}" min="1" max="365" required>
-                                                                <small class="form-text text-muted">{{ t('shopping_frequency_help', default='Enter frequency in days (e.g., 7)') | e }}</small>
-                                                            </td>
-                                                        </tr>
-                                                    {% endfor %}
-                                                </tbody>
-                                            </table>
+                                    <div class="card mb-4">
+                                        <div class="card-header">
+                                            <h6><i class="fa-solid fa-list"></i> {{ t('shopping_items', default='Items') | e }}</h6>
                                         </div>
-
-                                        <h6 class="mt-4">{{ t('shopping_add_new_items', default='Add New Items') | e }}</h6>
-                                        {% for i in range(1, 6) %}
-                                            <div class="row mb-3">
-                                                <div class="col-md-2">
-                                                    <input type="text" name="new_item_name_{{ i }}" class="form-control form-control-sm new-item-name" placeholder="{{ t('shopping_item_name_placeholder', default='e.g., Milk') | e }}">
+                                        <div class="card-body">
+                                            {% if items %}
+                                                <div class="table-responsive">
+                                                    <table class="table table-striped">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>{{ t('general_item_name', default='Item Name') | e }}</th>
+                                                                <th>{{ t('general_quantity', default='Quantity') | e }}</th>
+                                                                <th>{{ t('general_price', default='Price') | e }}</th>
+                                                                <th>{{ t('general_unit', default='Unit') | e }}</th>
+                                                                <th>{{ t('general_category', default='Category') | e }}</th>
+                                                                <th>{{ t('general_status', default='Status') | e }}</th>
+                                                                <th>{{ t('general_store', default='Store') | e }}</th>
+                                                                <th>{{ t('general_frequency', default='Frequency') | e }}</th>
+                                                                <th>{{ t('general_actions', default='Actions') | e }}</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {% for item in items %}
+                                                                <tr>
+                                                                    <td>{{ item.name | e }}</td>
+                                                                    <td>{{ item.quantity }}</td>
+                                                                    <td>{{ format_currency(item.price) | e }}</td>
+                                                                    <td>{{ t(item.unit, default=item.unit) | e }}</td>
+                                                                    <td>{{ t(item.category, default=item.category) | e }}</td>
+                                                                    <td>{{ t(item.status, default=item.status) | e }}</td>
+                                                                    <td>{{ item.store | e }}</td>
+                                                                    <td>{{ item.frequency }} {{ t('general_days', default='days') | e }}</td>
+                                                                    <td>
+                                                                        <button type="button" class="btn btn-primary btn-sm edit-item-btn" data-item-id="{{ item.id | e }}" onclick="openEditModal('{{ item.id | e }}', '{{ item.name | e }}', {{ item.quantity }}, '{{ format_currency(item.price) | e }}', '{{ item.unit | e }}', '{{ item.category | e }}', '{{ item.status | e }}', '{{ item.store | e }}', {{ item.frequency }})">
+                                                                            <i class="fa-solid fa-pen-to-square"></i> {{ t('general_edit', default='Edit') | e }}
+                                                                        </button>
+                                                                        <form method="POST" action="{{ url_for('personal.shopping.main', tab='manage-list') | e }}" class="d-inline validate-form">
+                                                                            <input type="hidden" name="action" value="delete_item">
+                                                                            <input type="hidden" name="list_id" value="{{ selected_list.id | e }}">
+                                                                            <input type="hidden" name="item_id" value="{{ item.id | e }}">
+                                                                            {{ list_form.csrf_token }}
+                                                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('{{ t('shopping_confirm_delete_item', default='Are you sure you want to delete this item?') | e }}');">
+                                                                                <i class="fa-solid fa-trash"></i> {{ t('general_delete', default='Delete') | e }}
+                                                                            </button>
+                                                                        </form>
+                                                                    </td>
+                                                                </tr>
+                                                            {% endfor %}
+                                                        </tbody>
+                                                    </table>
                                                 </div>
-                                                <div class="col-md-1">
-                                                    <input type="number" name="new_item_quantity_{{ i }}" class="form-control form-control-sm number-input new-item-quantity" placeholder="{{ t('shopping_quantity_placeholder', default='e.g., 2') | e }}" min="1" max="1000">
-                                                    <small class="form-text text-muted">{{ t('shopping_quantity_help', default='Enter the number of units (e.g., 2 cartons, 5 pieces)') | e }}</small>
+                                            {% else %}
+                                                <div class="empty-state text-center">
+                                                    <i class="fa-solid fa-cart-shopping fa-3x mb-3"></i>
+                                                    <p>{{ t('shopping_empty_list', default='Your shopping list is empty. Add items to get started!') | e }}</p>
                                                 </div>
-                                                <div class="col-md-1">
-                                                    <input type="text" name="new_item_price_{{ i }}" class="form-control form-control-sm number-input new-item-price" placeholder="{{ t('shopping_price_placeholder', default='e.g., 500.00') | e }}">
-                                                    <small class="form-text text-muted">{{ t('shopping_price_help', default='Enter price per unit (e.g., price for one carton or piece)') | e }}</small>
-                                                </div>
-                                                <div class="col-md-2">
-                                                    <select name="new_item_unit_{{ i }}" class="form-control form-control-sm">
-                                                        {% for value, label in item_form.unit.choices %}
-                                                            <option value="{{ value | e }}">{{ t(value, default=label) | e }}</option>
-                                                        {% endfor %}
-                                                    </select>
-                                                    <small class="form-text text-muted">{{ t('shopping_unit_help', default='Select the unit of measurement (e.g., Piece, Carton)') | e }}</small>
-                                                </div>
-                                                <div class="col-md-2">
-                                                    <select name="new_item_category_{{ i }}" class="form-control form-control-sm">
-                                                        {% for value, label in item_form.category.choices %}
-                                                            <option value="{{ value | e }}">{{ t(value, default=label) | e }}</option>
-                                                        {% endfor %}
-                                                    </select>
-                                                </div>
-                                                <div class="col-md-2">
-                                                    <select name="new_item_status_{{ i }}" class="form-control form-control-sm">
-                                                        {% for value, label in item_form.status.choices %}
-                                                            <option value="{{ value | e }}">{{ t(value, default=label) | e }}</option>
-                                                        {% endfor %}
-                                                    </select>
-                                                </div>
-                                                <div class="col-md-2">
-                                                    <input type="text" name="new_item_store_{{ i }}" class="form-control form-control-sm" placeholder="{{ t('shopping_store_placeholder', default='e.g., Shoprite') | e }}">
-                                                </div>
-                                                <div class="col-md-2">
-                                                    <input type="number" name="new_item_frequency_{{ i }}" class="form-control form-control-sm number-input" placeholder="{{ t('shopping_frequency_placeholder', default='e.g., 7') | e }}" min="1" max="365">
-                                                    <small class="form-text text-muted">{{ t('shopping_frequency_help', default='Enter frequency in days (e.g., 7)') | e }}</small>
-                                                </div>
-                                            </div>
-                                        {% endfor %}
-
-                                        <div class="mt-3">
-                                            <button type="submit" class="btn btn-primary" id="saveChangesSubmit">
-                                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                                                <i class="fa-solid fa-floppy-disk"></i> {{ t('shopping_save_changes', default='Save Changes') | e }}
-                                            </button>
-                                            {% if get_flashed_messages()|selectattr('1', 'equalto', t('shopping_item_restored', default='Last deleted item restored!') | e )|list or get_flashed_messages()|selectattr('1', 'equalto', t('shopping_list_deletion_initiated', default='Shopping list deletion initiated. Will delete in 20 seconds.') | e )|list %}
-                                                <form method="POST" action="{{ url_for('personal.shopping.main', tab='manage-list') | e }}" class="d-inline validate-form" id="undoForm">
-                                                    <input type="hidden" name="action" value="undo_last_delete">
-                                                    <input type="hidden" name="list_id" value="{{ latest_list.id | e }}">
-                                                    {{ list_form.csrf_token }}
-                                                    <button type="submit" class="btn btn-warning btn-sm" id="undoDeleteSubmit">
-                                                        <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                                                        <i class="fa-solid fa-undo"></i> {{ t('shopping_undo_delete', default='Undo Last Delete') | e }} <span class="undo-timer" id="undo-timer">(2:00)</span>
-                                                    </button>
-                                                </form>
                                             {% endif %}
                                         </div>
-                                    {% else %}
-                                        <div class="empty-state text-center">
-                                            <i class="fa-solid fa-cart-shopping fa-3x mb-3"></i>
-                                            <p>{{ t('shopping_empty_list', default='Your shopping list is empty. Add items to get started!') | e }}</p>
+                                    </div>
+
+                                    <div class="card mb-4">
+                                        <div class="card-header">
+                                            <h6><i class="fa-solid fa-cart-plus"></i> {{ t('shopping_add_new_items', default='Add New Items') | e }}</h6>
                                         </div>
-                                    {% endif %}
+                                        <div class="card-body">
+                                            {% for i in range(1, 6) %}
+                                                <div class="row mb-3">
+                                                    <div class="col-md-2">
+                                                        <input type="text" name="new_item_name_{{ i }}" class="form-control form-control-sm new-item-name" placeholder="{{ t('shopping_item_name_placeholder', default='e.g., Milk') | e }}">
+                                                    </div>
+                                                    <div class="col-md-1">
+                                                        <input type="number" name="new_item_quantity_{{ i }}" class="form-control form-control-sm number-input new-item-quantity" placeholder="{{ t('shopping_quantity_placeholder', default='e.g., 2') | e }}" min="1" max="1000">
+                                                        <small class="form-text text-muted">{{ t('shopping_quantity_help', default='Enter the number of units (e.g., 2 cartons, 5 pieces)') | e }}</small>
+                                                    </div>
+                                                    <div class="col-md-1">
+                                                        <input type="text" name="new_item_price_{{ i }}" class="form-control form-control-sm number-input new-item-price" placeholder="{{ t('shopping_price_placeholder', default='e.g., 500.00') | e }}">
+                                                        <small class="form-text text-muted">{{ t('shopping_price_help', default='Enter price per unit (e.g., price for one carton or piece)') | e }}</small>
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <select name="new_item_unit_{{ i }}" class="form-control form-control-sm">
+                                                            {% for value, label in item_form.unit.choices %}
+                                                                <option value="{{ value | e }}">{{ t(value, default=label) | e }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <select name="new_item_category_{{ i }}" class="form-control form-control-sm">
+                                                            {% for value, label in item_form.category.choices %}
+                                                                <option value="{{ value | e }}">{{ t(value, default=label) | e }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <select name="new_item_status_{{ i }}" class="form-control form-control-sm">
+                                                            {% for value, label in item_form.status.choices %}
+                                                                <option value="{{ value | e }}">{{ t(value, default=label) | e }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <input type="text" name="new_item_store_{{ i }}" class="form-control form-control-sm" placeholder="{{ t('shopping_store_placeholder', default='e.g., Shoprite') | e }}">
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <input type="number" name="new_item_frequency_{{ i }}" class="form-control form-control-sm number-input" placeholder="{{ t('shopping_frequency_placeholder', default='e.g., 7') | e }}" min="1" max="365">
+                                                        <small class="form-text text-muted">{{ t('shopping_frequency_help', default='Enter frequency in days (e.g., 7)') | e }}</small>
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-3">
+                                        <button type="submit" class="btn btn-primary" id="saveChangesSubmit">
+                                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                            <i class="fa-solid fa-floppy-disk"></i> {{ t('shopping_save_changes', default='Save Changes') | e }}
+                                        </button>
+                                        <a href="{{ url_for('personal.shopping.export_list_pdf', list_id=selected_list.id) | e }}" class="btn btn-success btn-sm"><i class="fa-solid fa-file-pdf"></i> {{ t('shopping_export_pdf', default='Export to PDF') | e }}</a>
+                                    </div>
                                 </form>
                             {% else %}
                                 <div class="empty-state text-center">
                                     <i class="fa-solid fa-cart-shopping fa-3x mb-3"></i>
-                                    <p>{{ t('shopping_no_list_selected', default='No list selected. Please select a list to manage.') | e }}</p>
+                                    <p>{{ t('shopping_no_list_selected', default='No list selected or the selected list is not saved. Please select a saved list to manage.') | e }}</p>
                                 </div>
                             {% endif %}
                         </div>
@@ -652,7 +642,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Translation map for help text
     const helpTextTranslations = {
-        'budget': "{{ t('shopping_budget_help', default='Enter your budget (e.g., 50,000 or 50,000.00)') | e }}",
+        'budget': "{{ t('shopping_budget_help', default='Enter your budget (e.g., 100,000 or 100,000.00)') | e }}",
         'quantity': "{{ t('shopping_quantity_help', default='Enter the number of units (e.g., 2 cartons, 5 pieces)') | e }}",
         'price': "{{ t('shopping_price_help', default='Enter price per unit (e.g., price for one carton or piece)') | e }}",
         'frequency': "{{ t('shopping_frequency_help', default='Enter frequency in days (e.g., 7)') | e }}",
@@ -661,6 +651,9 @@ document.addEventListener('DOMContentLoaded', function() {
         'quantity_max': "{{ t('shopping_quantity_max', default='Quantity cannot exceed 1000') | e }}",
         'frequency_max': "{{ t('shopping_frequency_max', default='Frequency cannot exceed 365 days') | e }}"
     };
+
+    // Local state for items in the dashboard
+    let items = [];
 
     // Helper function to format a number for display
     function formatForDisplay(value, isInteger) {
@@ -686,8 +679,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Apply formatting and validation to number inputs
     document.querySelectorAll('.number-input').forEach(input => {
-        const isInteger = input.id === 'quantity' || input.id === 'frequency' || input.classList.contains('item-quantity') || input.classList.contains('new-item-quantity') || input.classList.contains('new-item-frequency');
-        const originalHelpText = helpTextTranslations[input.id] || helpTextTranslations['budget'] || helpTextTranslations['quantity'] || helpTextTranslations['price'] || helpTextTranslations['frequency'];
+        const isInteger = input.id.includes('quantity') || input.id.includes('frequency') || input.classList.contains('item-quantity') || input.classList.contains('new-item-quantity') || input.classList.contains('new-item-frequency');
+        const originalHelpText = helpTextTranslations[input.id.replace('edit-item-', '')] || helpTextTranslations['budget'] || helpTextTranslations['quantity'] || helpTextTranslations['price'] || helpTextTranslations['frequency'];
 
         input.addEventListener('focus', function() {
             let currentValue = input.value;
@@ -699,11 +692,11 @@ document.addEventListener('DOMContentLoaded', function() {
             let numValue = isInteger ? parseInt(rawValue) || 0 : parseFloat(rawValue) || 0;
 
             if (isInteger) {
-                if ((input.id === 'quantity' || input.classList.contains('item-quantity') || input.classList.contains('new-item-quantity')) && numValue > 1000) {
+                if ((input.id.includes('quantity') || input.classList.contains('item-quantity') || input.classList.contains('new-item-quantity')) && numValue > 1000) {
                     numValue = 1000;
                     input.classList.add('is-invalid');
                     input.nextElementSibling.innerText = helpTextTranslations['quantity_max'];
-                } else if ((input.id === 'frequency' || input.classList.contains('new-item-frequency')) && numValue > 365) {
+                } else if ((input.id.includes('frequency') || input.classList.contains('new-item-frequency')) && numValue > 365) {
                     numValue = 365;
                     input.classList.add('is-invalid');
                     input.nextElementSibling.innerText = helpTextTranslations['frequency_max'];
@@ -759,8 +752,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
             let numValue = isInteger ? parseInt(clean) || 0 : parseFloat(clean) || 0;
             if (isInteger) {
-                if ((input.id === 'quantity' || input.classList.contains('item-quantity') || input.classList.contains('new-item-quantity')) && numValue > 1000) numValue = 1000;
-                if ((input.id === 'frequency' || input.classList.contains('new-item-frequency')) && numValue > 365) numValue = 365;
+                if ((input.id.includes('quantity') || input.classList.contains('item-quantity') || input.classList.contains('new-item-quantity')) && numValue > 1000) numValue = 1000;
+                if ((input.id.includes('frequency') || input.classList.contains('new-item-frequency')) && numValue > 365) numValue = 365;
                 input.value = numValue.toString();
             } else {
                 const parts = clean.split('.');
@@ -789,16 +782,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             let formIsValid = true;
             form.querySelectorAll('.number-input').forEach(input => {
-                const isInteger = input.id === 'quantity' || input.id === 'frequency' || input.classList.contains('item-quantity') || input.classList.contains('new-item-quantity') || input.classList.contains('new-item-frequency');
+                const isInteger = input.id.includes('quantity') || input.id.includes('frequency') || input.classList.contains('item-quantity') || input.classList.contains('new-item-quantity') || input.classList.contains('new-item-frequency');
                 let rawValue = cleanForParse(input.value);
                 let numValue = isInteger ? parseInt(rawValue) || 0 : parseFloat(rawValue) || 0;
 
                 if (isInteger) {
-                    if ((input.id === 'quantity' || input.classList.contains('item-quantity') || input.classList.contains('new-item-quantity')) && numValue > 1000) {
+                    if ((input.id.includes('quantity') || input.classList.contains('item-quantity') || input.classList.contains('new-item-quantity')) && numValue > 1000) {
                         input.classList.add('is-invalid');
                         input.nextElementSibling.innerText = helpTextTranslations['quantity_max'];
                         formIsValid = false;
-                    } else if ((input.id === 'frequency' || input.classList.contains('new-item-frequency')) && numValue > 365) {
+                    } else if ((input.id.includes('frequency') || input.classList.contains('new-item-frequency')) && numValue > 365) {
                         input.classList.add('is-invalid');
                         input.nextElementSibling.innerText = helpTextTranslations['frequency_max'];
                         formIsValid = false;
@@ -808,7 +801,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         formIsValid = false;
                     } else {
                         input.classList.remove('is-invalid');
-                        input.nextElementSibling.innerText = helpTextTranslations[input.id] || helpTextTranslations['quantity'] || helpTextTranslations['price'] || helpTextTranslations['frequency'];
+                        input.nextElementSibling.innerText = helpTextTranslations[input.id.replace('edit-item-', '')] || helpTextTranslations['quantity'] || helpTextTranslations['price'] || helpTextTranslations['frequency'];
                     }
                 } else {
                     if (numValue > 10000000000 || numValue < 0) {
@@ -817,21 +810,28 @@ document.addEventListener('DOMContentLoaded', function() {
                         formIsValid = false;
                     } else {
                         input.classList.remove('is-invalid');
-                        input.nextElementSibling.innerText = helpTextTranslations[input.id] || helpTextTranslations['budget'];
+                        input.nextElementSibling.innerText = helpTextTranslations[input.id.replace('edit-item-', '')] || helpTextTranslations['budget'];
                     }
                 }
                 input.value = isInteger ? numValue.toString() : numValue.toFixed(2);
             });
 
-            if (form.id === 'manageListForm') {
+            if (form.id === 'manageListForm' || form.id === 'saveListForm') {
                 // Duplicate detection
                 const itemNames = [];
-                const nameInputs = form.querySelectorAll('input[name$="_name"]');
-                nameInputs.forEach(input => {
-                    if (input.value.trim()) {
-                        itemNames.push(input.value.trim().toLowerCase());
-                    }
-                });
+                if (form.id === 'manageListForm') {
+                    form.querySelectorAll('input[name$="_name"]').forEach(input => {
+                        if (input.value.trim()) {
+                            itemNames.push(input.value.trim().toLowerCase());
+                        }
+                    });
+                } else {
+                    items.forEach(item => {
+                        if (item.name.trim()) {
+                            itemNames.push(item.name.trim().toLowerCase());
+                        }
+                    });
+                }
                 const uniqueNames = new Set(itemNames);
                 if (itemNames.length !== uniqueNames.size) {
                     document.getElementById('duplicateWarning').classList.remove('d-none');
@@ -841,8 +841,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 // Budget check
-                const total = calculateTotalCost();
-                const budget = parseFloat(cleanForParse(document.getElementById('list_budget').value)) || 0;
+                const total = form.id === 'manageListForm' ? calculateTotalCost(form) : calculateFrontendTotal();
+                const budget = parseFloat(cleanForParse(document.getElementById('list_budget')?.value)) || {{ selected_list.budget | default(0) }};
                 if (total > budget && budget > 0) {
                     e.preventDefault();
                     const modal = new bootstrap.Modal(document.getElementById('budgetWarningModal'));
@@ -868,60 +868,166 @@ document.addEventListener('DOMContentLoaded', function() {
             const submitButton = form.querySelector('button[type="submit"]');
             if (submitButton && formIsValid) {
                 submitButton.disabled = true;
-                submitButton.querySelector('.spinner-border').classList.remove('d-none');
-                submitButton.querySelector('i').classList.add('d-none');
+                submitButton.querySelector('.spinner-border')?.classList.remove('d-none');
+                submitButton.querySelector('i')?.classList.add('d-none');
+            }
+
+            // Append items to saveListForm
+            if (form.id === 'saveListForm' && formIsValid) {
+                items.forEach((item, index) => {
+                    const itemFields = ['name', 'quantity', 'price', 'unit', 'category', 'status', 'store', 'frequency'];
+                    itemFields.forEach(field => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = `items[${index}][${field}]`;
+                        input.value = item[field] || '';
+                        form.appendChild(input);
+                    });
+                });
             }
         });
     });
 
-    // Reset add item form after successful submission
-    if (document.getElementById('addItemForm')) {
-        const messages = {{ get_flashed_messages(with_categories=true) | tojson | safe }};
-        if (messages.some(([cat, msg]) => cat === 'success' && msg.includes('{{ t('shopping_item_added', default='Item added successfully!') | e }}'))) {
-            document.getElementById('addItemForm').reset();
+    // Add item to frontend state
+    document.getElementById('addItemSubmit')?.addEventListener('click', function() {
+        const form = document.getElementById('addItemForm');
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        const item = {
+            id: 'temp_' + Date.now(),
+            name: document.getElementById('item_name').value.trim(),
+            quantity: parseInt(document.getElementById('item_quantity').value) || 1,
+            price: parseFloat(cleanForParse(document.getElementById('item_price').value)) || 0,
+            unit: document.getElementById('item_unit').value,
+            category: document.getElementById('item_category').value,
+            status: document.getElementById('item_status').value,
+            store: document.getElementById('item_store').value.trim(),
+            frequency: parseInt(document.getElementById('item_frequency').value) || 1
+        };
+
+        const itemNames = items.map(i => i.name.toLowerCase());
+        if (itemNames.includes(item.name.toLowerCase())) {
+            document.getElementById('duplicateWarning').classList.remove('d-none');
+            return;
+        }
+        document.getElementById('duplicateWarning').classList.add('d-none');
+
+        items.push(item);
+        updateItemsTable();
+        form.reset();
+        updateBudgetProgress();
+    });
+
+    // Open edit modal
+    window.openEditModal = function(id, name, quantity, price, unit, category, status, store, frequency) {
+        document.getElementById('edit-item-index').value = id;
+        document.getElementById('edit-item-name').value = name;
+        document.getElementById('edit-item-quantity').value = quantity;
+        document.getElementById('edit-item-price').value = formatForDisplay(price, false);
+        document.getElementById('edit-item-unit').value = unit;
+        document.getElementById('edit-item-category').value = category;
+        document.getElementById('edit-item-status').value = status;
+        document.getElementById('edit-item-store').value = store;
+        document.getElementById('edit-item-frequency').value = frequency;
+
+        const modal = new bootstrap.Modal(document.getElementById('editItemModal'));
+        modal.show();
+    };
+
+    // Save edited item
+    document.getElementById('saveEditItem')?.addEventListener('click', function() {
+        const index = document.getElementById('edit-item-index').value;
+        const itemIndex = items.findIndex(item => item.id === index);
+        if (itemIndex === -1) return;
+
+        const newItem = {
+            id: index,
+            name: document.getElementById('edit-item-name').value.trim(),
+            quantity: parseInt(document.getElementById('edit-item-quantity').value) || 1,
+            price: parseFloat(cleanForParse(document.getElementById('edit-item-price').value)) || 0,
+            unit: document.getElementById('edit-item-unit').value,
+            category: document.getElementById('edit-item-category').value,
+            status: document.getElementById('edit-item-status').value,
+            store: document.getElementById('edit-item-store').value.trim(),
+            frequency: parseInt(document.getElementById('edit-item-frequency').value) || 1
+        };
+
+        const itemNames = items.map(i => i.name.toLowerCase()).filter((_, i) => i !== itemIndex);
+        if (itemNames.includes(newItem.name.toLowerCase())) {
+            document.getElementById('duplicateWarning').classList.remove('d-none');
+            return;
+        }
+        document.getElementById('duplicateWarning').classList.add('d-none');
+
+        items[itemIndex] = newItem;
+        updateItemsTable();
+        updateBudgetProgress();
+        bootstrap.Modal.getInstance(document.getElementById('editItemModal')).hide();
+    });
+
+    // Delete item from frontend state
+    window.deleteItem = function(id) {
+        items = items.filter(item => item.id !== id);
+        updateItemsTable();
+        updateBudgetProgress();
+    };
+
+    // Update items table
+    function updateItemsTable() {
+        const tbody = document.getElementById('items-table-body');
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+        items.forEach(item => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${item.name}</td>
+                <td>${item.quantity}</td>
+                <td>${formatForDisplay(item.price, false)}</td>
+                <td>{{ t('${item.unit}', default='${item.unit}') | e }}</td>
+                <td>{{ t('${item.category}', default='${item.category}') | e }}</td>
+                <td>{{ t('${item.status}', default='${item.status}') | e }}</td>
+                <td>${item.store}</td>
+                <td>${item.frequency} {{ t('general_days', default='days') | e }}</td>
+                <td>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="openEditModal('${item.id}', '${item.name}', ${item.quantity}, '${formatForDisplay(item.price, false)}', '${item.unit}', '${item.category}', '${item.status}', '${item.store}', ${item.frequency})">
+                        <i class="fa-solid fa-pen-to-square"></i> {{ t('general_edit', default='Edit') | e }}
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="deleteItem('${item.id}')">
+                        <i class="fa-solid fa-trash"></i> {{ t('general_delete', default='Delete') | e }}
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        if (items.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="empty-state text-center">
+                        <i class="fa-solid fa-cart-shopping fa-3x mb-3"></i>
+                        <p>{{ t('shopping_empty_list', default='Your shopping list is empty. Add items to get started!') | e }}</p>
+                    </td>
+                </tr>
+            `;
         }
     }
 
-    // Show toasts
-    document.querySelectorAll('.toast').forEach(toast => {
-        new bootstrap.Toast(toast).show();
-    });
-
-    // Undo delete timer
-    const undoButton = document.getElementById('undoDeleteSubmit');
-    if (undoButton) {
-        let timeLeft = 120; // 2 minutes in seconds
-        const timerElement = document.getElementById('undo-timer');
-        const updateTimer = () => {
-            const minutes = Math.floor(timeLeft / 60);
-            const seconds = timeLeft % 60;
-            timerElement.textContent = `(${minutes}:${seconds.toString().padStart(2, '0')})`;
-            timeLeft--;
-            if (timeLeft < 0) {
-                undoButton.style.display = 'none';
-                clearInterval(timerInterval);
-            }
-        };
-        updateTimer();
-        const timerInterval = setInterval(updateTimer, 1000);
-        setTimeout(() => {
-            undoButton.style.display = 'none';
-            clearInterval(timerInterval);
-        }, 120000);
-    }
-
-    // Calculate total cost and update progress bar
-    function calculateTotalCost() {
+    // Calculate total cost for manage list form
+    function calculateTotalCost(form) {
         let total = 0;
-        document.querySelectorAll('.item-quantity').forEach((quantityInput, index) => {
-            const priceInput = document.querySelectorAll('.item-price')[index];
+        form.querySelectorAll('.item-quantity').forEach((quantityInput, index) => {
+            const priceInput = form.querySelectorAll('.item-price')[index];
             const quantity = parseInt(quantityInput.value) || 0;
             const price = parseFloat(cleanForParse(priceInput.value)) || 0;
             total += quantity * price;
         });
-        document.querySelectorAll('.new-item-quantity').forEach((quantityInput, index) => {
-            const priceInput = document.querySelectorAll('.new-item-price')[index];
-            const nameInput = document.querySelectorAll('.new-item-name')[index];
+        form.querySelectorAll('.new-item-quantity').forEach((quantityInput, index) => {
+            const priceInput = form.querySelectorAll('.new-item-price')[index];
+            const nameInput = form.querySelectorAll('.new-item-name')[index];
             if (nameInput.value.trim()) {
                 const quantity = parseInt(quantityInput.value) || 0;
                 const price = parseFloat(cleanForParse(priceInput.value)) || 0;
@@ -931,9 +1037,17 @@ document.addEventListener('DOMContentLoaded', function() {
         return total;
     }
 
+    // Calculate total cost for frontend items
+    function calculateFrontendTotal() {
+        return items.reduce((total, item) => {
+            return total + (item.quantity * item.price);
+        }, 0);
+    }
+
+    // Update budget progress
     function updateBudgetProgress() {
-        const total = calculateTotalCost();
-        const budget = parseFloat(cleanForParse(document.getElementById('list_budget')?.value)) || {{ latest_list.budget_raw | default(0) }};
+        const total = calculateFrontendTotal();
+        const budget = parseFloat(cleanForParse(document.getElementById('budget-amount')?.textContent)) || {{ selected_list.budget | default(0) }};
         const progressBar = document.getElementById('budget-progress');
         if (progressBar && budget > 0) {
             const percentage = (total / budget * 100).toFixed(2);
@@ -942,33 +1056,45 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         const totalSpentElement = document.getElementById('total-spent');
         if (totalSpentElement) {
-            totalSpentElement.textContent = total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            totalSpentElement.textContent = formatForDisplay(total, false);
         }
         const remainingElement = document.getElementById('remaining-budget');
         if (remainingElement) {
             const remaining = budget - total;
             remainingElement.textContent = remaining >= 0
-                ? remaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                : `{{ t('general_over_by', default='Over by') | e }}: ${(-remaining).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                ? formatForDisplay(remaining, false)
+                : `{{ t('general_over_by', default='Over by') | e }}: ${formatForDisplay(-remaining, false)}`;
         }
     }
-
-    // Add event listeners for real-time budget updates
-    document.querySelectorAll('.item-quantity, .item-price, .new-item-quantity, .new-item-price').forEach(input => {
-        input.addEventListener('input', updateBudgetProgress);
-    });
 
     // Load list details
-    function loadListDetails(listId) {
+    function loadListDetails(listId, tab) {
         if (window.isAuthenticatedContentBlocked) return;
         if (listId) {
-            const baseUrl = '{{ url_for("personal.shopping.edit_list", list_id="LIST_ID") | e }}';
-            const url = baseUrl.replace('LIST_ID', listId) + '?tab=manage-list';
+            const url = '{{ url_for("personal.shopping.main", tab=tab, list_id="LIST_ID") | e }}'.replace('LIST_ID', listId);
             window.location.href = url;
         } else {
-            document.getElementById('list-details').innerHTML = '<div class="empty-state text-center"><i class="fa-solid fa-cart-shopping fa-3x mb-3"></i><p>{{ t("shopping_no_list_selected", default="No list selected. Please select a list to manage.") | e }}</p></div>';
+            const detailsDiv = document.getElementById(tab === 'dashboard' ? 'list-details' : 'manage-list-details');
+            detailsDiv.innerHTML = `
+                <div class="empty-state text-center">
+                    <i class="fa-solid fa-cart-shopping fa-3x mb-3"></i>
+                    <p>{{ t('shopping_no_list_selected', default='No list selected. Please select a list to manage.') | e }}</p>
+                </div>
+            `;
+            if (tab === 'dashboard') {
+                items = [];
+                updateItemsTable();
+                updateBudgetProgress();
+            }
         }
     }
+
+    // Reset items when changing lists
+    document.getElementById('list-select')?.addEventListener('change', function() {
+        items = [];
+        updateItemsTable();
+        updateBudgetProgress();
+    });
 
     // Tab persistence with sessionStorage
     const validTabs = ['create-list', 'dashboard', 'manage-list'];
@@ -1007,6 +1133,14 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(tooltipTriggerEl => {
         new bootstrap.Tooltip(tooltipTriggerEl);
     });
+
+    // Show toasts
+    document.querySelectorAll('.toast').forEach(toast => {
+        new bootstrap.Toast(toast).show();
+    });
+
+    // Initialize items table
+    updateItemsTable();
 });
 </script>
 {% endblock %}
