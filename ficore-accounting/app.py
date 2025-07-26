@@ -1,4 +1,3 @@
-# Import necessary modules
 import os
 import sys
 project_root = os.path.dirname(os.path.abspath(__file__))
@@ -43,7 +42,6 @@ from flask_babel import Babel
 from flask_compress import Compress
 import requests
 from business_finance import business
-
 
 # Load environment variables
 load_dotenv()
@@ -96,12 +94,10 @@ limiter = Limiter(key_func=get_remote_address, default_limits=['200 per day', '5
 
 # Input validation utilities
 def validate_user_id(user_id):
-    """Validate user_id format (UUID)."""
-    try:
-        uuid_obj = uuid.UUID(str(user_id))
-        return str(uuid_obj) == str(user_id)
-    except ValueError:
+    """Validate user_id format (string, alphanumeric with underscores)."""
+    if not isinstance(user_id, str):
         return False
+    return bool(re.match(r'^[a-zA-Z0-9_]{3,50}$', user_id))
 
 def validate_email(email):
     """Validate email format."""
@@ -173,15 +169,16 @@ def check_mongodb_connection(app):
         return False
 
 class User(UserMixin):
-    """User class for Flask-Login with dual identity (user_id, email)."""
-    def __init__(self, id, email, display_name=None, role='personal', is_admin=False, setup_complete=False, coin_balance=0, ficore_credit_balance=0, language='en', dark_mode=False):
-        if not validate_user_id(id):
-            raise ValueError(f"Invalid user_id: {id}")
+    """User class for Flask-Login with string-based username as id."""
+    def __init__(self, id, email, display_name=None, role='personal', username=None, is_admin=False, setup_complete=False, coin_balance=0, ficore_credit_balance=0, language='en', dark_mode=False):
+        if not isinstance(id, str) or not re.match(r'^[a-zA-Z0-9_]{3,50}$', id):
+            raise ValueError(f"Invalid user_id: {id} (must be a string, alphanumeric with underscores, 3-50 characters)")
         if not validate_email(email):
             raise ValueError(f"Invalid email: {email}")
-        self.id = id
+        self.id = id.lower()
         self.email = email.lower()
-        self.display_name = display_name or id
+        self.username = username or display_name or id
+        self.display_name = display_name or username or id
         self.role = role
         self.is_admin = is_admin
         self.setup_complete = setup_complete
@@ -189,12 +186,15 @@ class User(UserMixin):
         self.ficore_credit_balance = ficore_credit_balance
         self.language = language
         self.dark_mode = dark_mode
+        self.is_authenticated = True
+        self.is_active = True
+        self.is_anonymous = False
 
     def get(self, key, default=None):
         """Retrieve user attribute from MongoDB."""
         try:
             with current_app.app_context():
-                user = current_app.extensions['mongo']['ficodb'].users.find_one({'_id': self.id, 'email': self.email})
+                user = current_app.extensions['mongo']['ficodb'].users.find_one({'_id': self.id})
                 if user and key == 'language':
                     self.language = user.get('language', 'en')
                 return user.get(key, default) if user else default
@@ -207,7 +207,7 @@ class User(UserMixin):
         """Check if user account is active."""
         try:
             with current_app.app_context():
-                user = current_app.extensions['mongo']['ficodb'].users.find_one({'_id': self.id, 'email': self.email})
+                user = current_app.extensions['mongo']['ficodb'].users.find_one({'_id': self.id})
                 return user.get('is_active', True) if user else False
         except Exception as e:
             logger.error(f'Error checking active status for user {self.id}/{self.email}: {str(e)}', exc_info=True)
@@ -215,13 +215,13 @@ class User(UserMixin):
 
     def get_id(self):
         """Return user_id as string for Flask-Login."""
-        return str(self.id)
+        return self.id
 
     def get_first_name(self):
         """Retrieve user's first name from personal details."""
         try:
             with current_app.app_context():
-                user = current_app.extensions['mongo']['ficodb'].users.find_one({'_id': self.id, 'email': self.email})
+                user = current_app.extensions['mongo']['ficodb'].users.find_one({'_id': self.id})
                 if user and 'personal_details' in user:
                     return user['personal_details'].get('first_name', self.display_name)
                 return self.display_name
@@ -334,24 +334,25 @@ def create_app():
                 return None
             with app.app_context():
                 db = app.extensions['mongo']['ficodb']
-                user = get_user(db, user_id)
+                user = db.users.find_one({'_id': user_id.lower()})
                 if not user:
                     logger.warning(f"User not found: {user_id}")
                     return None
-                if not validate_email(user.email):
-                    logger.warning(f"Invalid email for user {user_id}: {user.email}")
+                if not validate_email(user.get('email', '')):
+                    logger.warning(f"Invalid email for user {user_id}: {user.get('email')}")
                     return None
                 return User(
-                    id=user.id,
-                    email=user.email,
-                    display_name=user.display_name,
-                    role=user.role,
-                    is_admin=user.is_admin,
-                    setup_complete=user.setup_complete,
-                    coin_balance=user.coin_balance,
-                    ficore_credit_balance=user.ficore_credit_balance,
-                    language=user.language,
-                    dark_mode=user.dark_mode
+                    id=user['_id'],
+                    email=user['email'],
+                    display_name=user.get('display_name', user['_id']),
+                    role=user.get('role', 'personal'),
+                    username=user['_id'],
+                    is_admin=user.get('is_admin', False),
+                    setup_complete=user.get('setup_complete', False),
+                    coin_balance=user.get('coin_balance', 0),
+                    ficore_credit_balance=user.get('ficore_credit_balance', 0),
+                    language=user.get('language', 'en'),
+                    dark_mode=user.get('dark_mode', False)
                 )
         except Exception as e:
             logger.error(f"Error loading user {user_id}: {str(e)}", exc_info=True)
@@ -420,6 +421,7 @@ def create_app():
             admin_user = get_user_by_email(db, admin_email)
             if not admin_user:
                 user_data = {
+                    '_id': admin_username.lower(),
                     'email': admin_email.lower(),
                     'password': generate_password_hash(admin_password),
                     'role': 'admin',
@@ -427,6 +429,8 @@ def create_app():
                     'is_admin': True,
                     'setup_complete': True,
                     'language': 'en',
+                    'coin_balance': 0,
+                    'ficore_credit_balance': 0,
                     'created_at': datetime.utcnow()
                 }
                 admin_user = create_user(db, user_data)
@@ -676,7 +680,10 @@ def create_app():
             if current_user.is_authenticated:
                 try:
                     db = app.extensions['mongo']['ficodb']
-                    update_user(db, current_user.id, current_user.email, {'language': new_lang})
+                    db.users.update_one(
+                        {'_id': current_user.id},
+                        {'$set': {'language': new_lang}}
+                    )
                     current_user.language = new_lang
                     session['language'] = new_lang
                     logger.info(f"Updated session language to {new_lang} for user {current_user.id}/{current_user.email}")
@@ -836,7 +843,10 @@ def create_app():
                     return redirect(url_for('users.login'))
                 try:
                     db = current_app.extensions['mongo']['ficodb']
-                    update_user(db, current_user.id, current_user.email, {'language': new_lang})
+                    db.users.update_one(
+                        {'_id': current_user.id},
+                        {'$set': {'language': new_lang}}
+                    )
                     current_user.language = new_lang
                     session['language'] = new_lang
                     logger.info(f"Updated session language to {new_lang} for user {current_user.id}/{current_user.email}")
@@ -1000,7 +1010,7 @@ def create_app():
     @app.errorhandler(CSRFError)
     def handle_csrf_error(e):
         """Handle CSRF errors."""
-        logger.error(f'CSRF error: {str(e)}')
+        logger.error(f'CSRF error: {str(e)}', exc_info=True)
         lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
         try:
             return render_template(
@@ -1018,7 +1028,7 @@ def create_app():
     @app.errorhandler(404)
     def page_not_found(e):
         """Handle 404 errors."""
-        logger.error(f'Not found: {request.url}')
+        logger.error(f'Not found: {request.url}', exc_info=True)
         lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
         try:
             return render_template(
@@ -1036,18 +1046,18 @@ def create_app():
     @app.errorhandler(500)
     def internal_server_error(e):
         """Handle 500 errors."""
-        logger.error(f'Server error: {str(e)}')
+        logger.error(f'Server error: {str(e)}', exc_info=True)
         lang = getattr(current_user, 'language', 'en') if current_user.is_authenticated else 'en'
         try:
             return render_template(
                 'personal/GENERAL/error.html', 
-                error=str(e), 
+                error=utils.trans('server_error'), 
                 title=utils.trans('server_error', lang=lang)
             ), 500
         except TemplateNotFound:
             return render_template(
                 'personal/GENERAL/error.html', 
-                error=str(e), 
+                error=utils.trans('server_error'), 
                 title=utils.trans('server_error', lang=lang)
             ), 500
 
@@ -1073,4 +1083,4 @@ if __name__ == '__main__':
     app = create_app()  # Create the Flask app
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
 else:
-    app = create_app()  
+    app = create_app()
