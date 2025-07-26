@@ -326,7 +326,7 @@ def login():
     lang = request.args.get('lang', 'en')
     form = LoginForm()
     if request.method == 'POST':
-        logger.debug(f"Received POST request for login, form data: {request.form}")
+        logger.debug(f"Received POST request for login, form data: {dict(request.form) | {'password': '[REDACTED]'}}")
         if form.validate_on_submit():
             try:
                 identifier = form.username.data.strip().lower()
@@ -334,9 +334,9 @@ def login():
                 
                 db = utils.get_mongo_db()
                 if '@' in identifier:
-                    user = db.users.find_one({'email': {'$regex': f'^{identifier}$', '$options': 'i'}})
+                    user = db.users.find_one({'email': identifier})
                 else:
-                    user = db.users.find_one({'_id': {'$regex': f'^{identifier}$', '$options': 'i'}})
+                    user = db.users.find_one({'_id': identifier})
                 
                 if not user:
                     logger.warning(f"Login attempt failed: Identifier {identifier} not found")
@@ -371,7 +371,19 @@ def login():
                     except Exception as e:
                         logger.warning(f"Email delivery or formatting failed for OTP for {username}: {str(e)}. Allowing login without 2FA for testing.")
                         from app import User
-                        user_obj = User(user['_id'], user['email'], user.get('display_name'), user.get('role', 'personal'))
+                        user_obj = User(
+                            id=user['_id'],
+                            email=user['email'],
+                            display_name=user.get('display_name', username),
+                            role=user.get('role', 'personal'),
+                            username=user['_id'],
+                            is_admin=user.get('is_admin', False),
+                            setup_complete=user.get('setup_complete', False),
+                            coin_balance=user.get('coin_balance', 0),
+                            ficore_credit_balance=user.get('ficore_credit_balance', 0),
+                            language=user.get('language', 'en'),
+                            dark_mode=user.get('dark_mode', False)
+                        )
                         login_user(user_obj, remember=form.remember.data)
                         log_audit_action('login_without_2fa', username, {'user_id': username, 'reason': 'email_failure_test_mode'})
                         logger.info(f"User {username} logged in without 2FA due to email failure (test mode).")
@@ -380,7 +392,19 @@ def login():
                             return redirect(url_for(setup_route, lang=user.get('language', 'en')))
                         return redirect(get_post_login_redirect(user.get('role', 'personal')))
                 from app import User
-                user_obj = User(user['_id'], user['email'], user.get('display_name'), user.get('role', 'personal'))
+                user_obj = User(
+                    id=user['_id'],
+                    email=user['email'],
+                    display_name=user.get('display_name', username),
+                    role=user.get('role', 'personal'),
+                    username=user['_id'],
+                    is_admin=user.get('is_admin', False),
+                    setup_complete=user.get('setup_complete', False),
+                    coin_balance=user.get('coin_balance', 0),
+                    ficore_credit_balance=user.get('ficore_credit_balance', 0),
+                    language=user.get('language', 'en'),
+                    dark_mode=user.get('dark_mode', False)
+                )
                 login_result = login_user(user_obj, remember=form.remember.data)
                 logger.debug(f"login_user result for {username}: {login_result}")
                 if not login_result:
@@ -399,7 +423,7 @@ def login():
                 flash(trans('general_database_error', default='An error occurred while accessing the database. Please try again later.'), 'danger')
                 return render_template('users/login.html', form=form, title=trans('general_login', lang=lang)), 500
             except Exception as e:
-                logger.error(f"Unexpected error during login for {identifier}: {str(e)}")
+                logger.error(f"Unexpected error during login for {identifier}: {str(e)}", exc_info=True)
                 flash(trans('general_error', default='An error occurred. Please try again.'), 'danger')
                 return render_template('users/login.html', form=form, title=trans('general_login', lang=lang)), 500
         else:
@@ -443,7 +467,19 @@ def verify_2fa():
                 return redirect(url_for('users.login', lang=lang))
             if user.get('otp') == form.otp.data and user.get('otp_expiry') > datetime.utcnow():
                 from app import User
-                user_obj = User(user['_id'], user['email'], user.get('display_name'), user.get('role', 'personal'))
+                user_obj = User(
+                    id=user['_id'],
+                    email=user['email'],
+                    display_name=user.get('display_name', username),
+                    role=user.get('role', 'personal'),
+                    username=user['_id'],
+                    is_admin=user.get('is_admin', False),
+                    setup_complete=user.get('setup_complete', False),
+                    coin_balance=user.get('coin_balance', 0),
+                    ficore_credit_balance=user.get('ficore_credit_balance', 0),
+                    language=user.get('language', 'en'),
+                    dark_mode=user.get('dark_mode', False)
+                )
                 login_user(user_obj, remember=True)
                 db.users.update_one(
                     {'_id': username},
@@ -559,7 +595,19 @@ def signup():
             })
 
             from app import User
-            user_obj = User(username, email, username, role)
+            user_obj = User(
+                id=username,
+                email=email,
+                display_name=username,
+                role=role,
+                username=username,
+                is_admin=False,
+                setup_complete=False,
+                coin_balance=0,
+                ficore_credit_balance=10.0,
+                language=language,
+                dark_mode=False
+            )
             login_user(user_obj, remember=True)
             logger.info(f"New user created and logged in: {username} (role: {role}).")
             setup_route = get_setup_wizard_route(role)
@@ -721,7 +769,7 @@ def setup_wizard():
 
         form = BusinessSetupForm()
         if form.validate_on_submit():
-            if form.back.data:
+            if form.back_submit.data:
                 flash(trans('general_setup_canceled', default='Business setup canceled'), 'info')
                 logger.info(f"Business setup canceled for user: {user_id}")
                 return redirect(url_for('settings.profile', user_id=user_id, lang=lang) if utils.is_admin() else url_for('settings.profile', lang=lang))
@@ -778,7 +826,7 @@ def personal_setup_wizard():
             logger.warning(f"Personal setup wizard failed: User {user_id} not found")
             return redirect(url_for('users.logout'))
 
-        if user.get('setup_complete', True):
+        if user.get('setup_complete', False):
             return redirect(get_post_login_redirect(user.get('role', 'personal')))
 
         form = PersonalSetupForm()
@@ -789,7 +837,7 @@ def personal_setup_wizard():
                 return redirect(url_for('settings.profile', user_id=user_id, lang=lang) if utils.is_admin() else url_for('settings.profile', lang=lang))
 
             db.users.update_one(
-                {'_id': user_id},
+                {'_:'id': 'user_id'},
                 {
                     '$set': {
                         'personal_details': {
@@ -804,7 +852,7 @@ def personal_setup_wizard():
                 }
             )
             log_audit_action('complete_personal_setup_wizard', user_id, {'user_id': user_id, 'updated_by': current_user.id})
-            logger.info(f"Personal setup completed for user: {user_id} by {current_user.id}")
+            logger.info(f"Personal setup completed for user {user_id} by {current_user.id}")
             flash(trans('general_personal_setup_success', default='Personal setup completed successfully'), 'success')
             return redirect(url_for('settings.profile', user_id=user_id, lang=lang) if utils.is_admin() else get_post_login_redirect(user.get('role', 'personal')))
         else:
@@ -847,7 +895,7 @@ def agent_setup_wizard():
             if form.back.data:
                 flash(trans('general_setup_canceled', default='Agent setup canceled'), 'info')
                 logger.info(f"Agent setup canceled for user: {user_id}")
-                return redirect(url_for('settings.profile', user_id=user_id, lang=lang) if utils.is_admin() else url_for('settings.profile', lang=lang))
+                return redirect(url_for('settings.profile', user_id=user_id, lang=lang), if utils.is_admin() else url_for('settings.profile', lang=lang))
 
             db.users.update_one(
                 {'_id': user_id},
@@ -867,9 +915,9 @@ def agent_setup_wizard():
                 }
             )
             log_audit_action('complete_agent_setup_wizard', user_id, {'user_id': user_id, 'updated_by': current_user.id})
-            logger.info(f"Agent setup completed for user: {user_id} by {current_user.id}")
+            logger.info(f"Agent setup completed successfully for user {user_id} by {current_user.id}")
             flash(trans('agents_setup_success', default='Agent setup completed successfully'), 'success')
-            return redirect(url_for('settings.profile', user_id=user_id, lang=lang) if utils.is_admin() else get_post_login_redirect(user.get('role', 'agent')))
+            return redirect(url_for('settings.profile', user_id=user_id, lang=lang') if utils.is_admin() else get_post_login_redirect(user.get('role', 'agent')))
         else:
             for field, errors in form.errors.items():
                 for error in errors:
