@@ -185,7 +185,7 @@ class User(UserMixin):
         self.ficore_credit_balance = ficore_credit_balance
         self.language = language
         self.dark_mode = dark_mode
-        self.is_active = True
+        self._is_active = True  # Use backing attribute for initialization
         self.is_anonymous = False
 
     def get(self, key, default=None):
@@ -206,10 +206,25 @@ class User(UserMixin):
         try:
             with current_app.app_context():
                 user = current_app.extensions['mongo']['ficodb'].users.find_one({'_id': self.id})
-                return user.get('is_active', True) if user else False
+                return user.get('is_active', self._is_active) if user else self._is_active
         except Exception as e:
             logger.error(f'Error checking active status for user {self.id}/{self.email}: {str(e)}', exc_info=True)
-            return False
+            return self._is_active
+
+    @is_active.setter
+    def is_active(self, value):
+        """Set user active status."""
+        self._is_active = value
+        try:
+            with current_app.app_context():
+                db = current_app.extensions['mongo']['ficodb']
+                db.users.update_one(
+                    {'_id': self.id},
+                    {'$set': {'is_active': value}}
+                )
+                logger.info(f"Updated is_active to {value} for user {self.id}/{self.email}")
+        except Exception as e:
+            logger.error(f'Error updating is_active for user {self.id}/{self.email}: {str(e)}', exc_info=True)
 
     def get_id(self):
         """Return user_id as string for Flask-Login."""
@@ -323,9 +338,11 @@ def create_app():
             session.pop('email', None)
 
     # User loader callback for Flask-Login
-    @login_manager.user_loader
-    def load_user(user_id):
-        """Load user from MongoDB using user_id."""
+@login_manager.user_loader
+def load_user(user_id, max_retries=3):
+    """Load user from MongoDB using user_id with retry mechanism."""
+    retries = 0
+    while retries < max_retries:
         try:
             if not validate_user_id(user_id):
                 logger.warning(f"Invalid user_id in user_loader: {user_id}")
@@ -339,7 +356,7 @@ def create_app():
                 if not validate_email(user.get('email', '')):
                     logger.warning(f"Invalid email for user {user_id}: {user.get('email')}")
                     return None
-                return User(
+                user_obj = User(
                     id=user['_id'],
                     email=user['email'],
                     display_name=user.get('display_name', user['_id']),
@@ -352,9 +369,23 @@ def create_app():
                     language=user.get('language', 'en'),
                     dark_mode=user.get('dark_mode', False)
                 )
+                # Ensure MongoDB has is_active set
+                if 'is_active' not in user:
+                    db.users.update_one(
+                        {'_id': user_id.lower()},
+                        {'$set': {'is_active': True}}
+                    )
+                    logger.info(f"Set default is_active=True for user {user_id}")
+                return user_obj
         except Exception as e:
-            logger.error(f"Error loading user {user_id}: {str(e)}", exc_info=True)
-            return None
+            retries += 1
+            logger.warning(f"Retry {retries}/{max_retries} for user {user_id}: {str(e)}")
+            if retries == max_retries:
+                logger.error(f"Max retries reached for user {user_id}: {str(e)}", exc_info=True)
+                return None
+            time.sleep(0.5)  # Brief delay before retry
+    logger.error(f"Failed to load user {user_id} after {max_retries} retries")
+    return None
 
     # Initialize MongoDB and other components
     try:
@@ -429,11 +460,16 @@ def create_app():
                     'language': 'en',
                     'coin_balance': 0,
                     'ficore_credit_balance': 0,
+                    'is_active': True,
                     'created_at': datetime.utcnow()
                 }
                 admin_user = create_user(db, user_data)
                 logger.info(f'Admin user created with ID: {admin_user.id}, email: {admin_email}')
             else:
+                db.users.update_one(
+                    {'_id': admin_username.lower()},
+                    {'$set': {'is_active': True}}
+                )
                 logger.info(f'Admin user already exists with ID: {admin_user.id}, email: {admin_email}')
     except Exception as e:
         logger.error(f'Error in create_app initialization: {str(e)}', exc_info=True)
