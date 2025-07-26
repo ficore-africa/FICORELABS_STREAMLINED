@@ -837,7 +837,7 @@ def personal_setup_wizard():
                 return redirect(url_for('settings.profile', user_id=user_id, lang=lang) if utils.is_admin() else url_for('settings.profile', lang=lang))
 
             db.users.update_one(
-                {'_:'id': 'user_id'},
+                {'_id': user_id},
                 {
                     '$set': {
                         'personal_details': {
@@ -895,7 +895,12 @@ def agent_setup_wizard():
             if form.back.data:
                 flash(trans('general_setup_canceled', default='Agent setup canceled'), 'info')
                 logger.info(f"Agent setup canceled for user: {user_id}")
-                return redirect(url_for('settings.profile', user_id=user_id, lang=lang), if utils.is_admin() else url_for('settings.profile', lang=lang))
+                # Corrected redirect logic
+                if utils.is_admin():
+                    redirect_url = url_for('settings.profile', user_id=user_id, lang=lang)
+                else:
+                    redirect_url = url_for('settings.profile', lang=lang)
+                return redirect(redirect_url)
 
             db.users.update_one(
                 {'_id': user_id},
@@ -917,7 +922,8 @@ def agent_setup_wizard():
             log_audit_action('complete_agent_setup_wizard', user_id, {'user_id': user_id, 'updated_by': current_user.id})
             logger.info(f"Agent setup completed successfully for user {user_id} by {current_user.id}")
             flash(trans('agents_setup_success', default='Agent setup completed successfully'), 'success')
-            return redirect(url_for('settings.profile', user_id=user_id, lang=lang') if utils.is_admin() else get_post_login_redirect(user.get('role', 'agent')))
+            redirect_url = url_for('settings.profile', user_id=user_id, lang=lang) if utils.is_admin() else get_post_login_redirect(user.get('role', 'agent'))
+            return redirect(redirect_url)
         else:
             for field, errors in form.errors.items():
                 for error in errors:
