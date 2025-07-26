@@ -169,7 +169,6 @@ def check_mongodb_connection(app):
         return False
 
 class User(UserMixin):
-    """User class for Flask-Login with string-based username as id."""
     def __init__(self, id, email, display_name=None, role='personal', username=None, is_admin=False, setup_complete=False, coin_balance=0, ficore_credit_balance=0, language='en', dark_mode=False):
         if not isinstance(id, str) or not re.match(r'^[a-zA-Z0-9_]{3,50}$', id):
             raise ValueError(f"Invalid user_id: {id} (must be a string, alphanumeric with underscores, 3-50 characters)")
@@ -186,7 +185,6 @@ class User(UserMixin):
         self.ficore_credit_balance = ficore_credit_balance
         self.language = language
         self.dark_mode = dark_mode
-        self.is_authenticated = True
         self.is_active = True
         self.is_anonymous = False
 
