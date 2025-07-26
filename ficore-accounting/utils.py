@@ -375,7 +375,7 @@ _AGENT_TOOLS = [
         "icon": "bi-person-workspace"
     },
     {
-        "endpoint": "Ficore agents_bp.manage_credits",
+        "endpoint": "agents_bp.manage_credits",
         "label": "Credits",
         "label_key": "credits_dashboard",
         "description_key": "credits_dashboard_desc",
@@ -394,7 +394,7 @@ _AGENT_NAV = [
         "icon": "bi-person-workspace"
     },
     {
-        "endpoint": "agents_bp.my_activity",
+        "endpoint": "agents_bp.recent_activity",
         "label": "My Activity",
         "label_key": "agents_my_activity",
         "description_key": "agents_my_activity_desc",
