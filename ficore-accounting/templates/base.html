@@ -133,30 +133,32 @@
     {% endif %}
 
     {% if not current_user.is_authenticated %}
-        <footer class="footer" role="contentinfo">
-            <div class="container-fluid">
-                <p>{{ t('general_about_ficore_africa', default='About FiCore Africa') | e }}: {{ t('general_empowering_financial_growth', default='Empowering financial growth across Africa since 2025') | e }}</p>
-                <p class="footer-disclaimer"><i class="bi bi-shield-fill-check me-2" aria-hidden="true"></i> {{ t('general_disclaimer', default='FiCore is not a bank and does not hold or move funds.') | e }} <a href="{{ url_for('general_bp.about') | e }}">{{ t('general_learn_more', default='Learn more') | e }}</a></p>
-                <div class="footer-links">
-                    <a href="{{ url_for('general_bp.terms') | e }}">{{ t('general_terms_of_service', default='Terms of Service') | e }}</a>
-                    <a href="{{ url_for('general_bp.privacy') | e }}">{{ t('general_privacy_policy', default='Privacy Policy') | e }}</a>
-                    <a href="mailto:support@ficoreafrica.com"><i class="bi bi-envelope-fill me-2" aria-hidden="true"></i> {{ t('general_contact_us', default='Contact Us') | e }}</a>
-                    <a href="{{ url_for('general_bp.feedback') | e }}"><i class="bi bi-chat-fill me-2" aria-hidden="true"></i> {{ t('general_provide_feedback', default='Provide Feedback') | e }}</a>
-                    <a href="{{ url_for('users.login') | e }}"><i class="bi bi-box-arrow-in-right me-2" aria-hidden="true"></i> {{ t('general_login', default='Login') | e }}</a>
+        <div class="footer-wrapper">
+            <footer class="footer" role="contentinfo">
+                <div class="container-fluid">
+                    <p>{{ t('general_about_ficore_africa', default='About FiCore Africa') | e }}: {{ t('general_empowering_financial_growth', default='Empowering financial growth across Africa since 2025') | e }}</p>
+                    <p class="footer-disclaimer"><i class="bi bi-shield-fill-check me-2" aria-hidden="true"></i> {{ t('general_disclaimer', default='FiCore is not a bank and does not hold or move funds.') | e }} <a href="{{ url_for('general_bp.about') | e }}">{{ t('general_learn_more', default='Learn more') | e }}</a></p>
+                    <div class="footer-links">
+                        <a href="{{ url_for('general_bp.terms') | e }}">{{ t('general_terms_of_service', default='Terms of Service') | e }}</a>
+                        <a href="{{ url_for('general_bp.privacy') | e }}">{{ t('general_privacy_policy', default='Privacy Policy') | e }}</a>
+                        <a href="mailto:support@ficoreafrica.com"><i class="bi bi-envelope-fill me-2" aria-hidden="true"></i> {{ t('general_contact_us', default='Contact Us') | e }}</a>
+                        <a href="{{ url_for('general_bp.feedback') | e }}"><i class="bi bi-chat-fill me-2" aria-hidden="true"></i> {{ t('general_provide_feedback', default='Provide Feedback') | e }}</a>
+                        <a href="{{ url_for('users.login') | e }}"><i class="bi bi-box-arrow-in-right me-2" aria-hidden="true"></i> {{ t('general_login', default='Login') | e }}</a>
+                    </div>
+                    <div class="social-icons">
+                        <a href="https://linkedin.com/company/ficoreafrica" target="_blank" rel="noopener noreferrer" aria-label="{{ t('general_connect_on_linkedin', default='Connect on LinkedIn') | e }}">
+                            <i class="fab fa-linkedin"></i> LinkedIn
+                        </a>
+                        <a href="https://x.com/Ficore_Africa" target="_blank" rel="noopener noreferrer" aria-label="{{ t('general_follow_on_twitter', default='Follow on Twitter') | e }}">
+                            <i class="fab fa-x-twitter"></i> Twitter
+                        </a>
+                        <a href="https://facebook.com/ficoreafrica" target="_blank" rel="noopener noreferrer" aria-label="{{ t('general_follow_on_facebook', default='Follow on Facebook') | e }}">
+                            <i class="fab fa-facebook"></i> Facebook
+                        </a>
+                    </div>
                 </div>
-                <div class="social-icons">
-                    <a href="https://linkedin.com/company/ficoreafrica" target="_blank" rel="noopener noreferrer" aria-label="{{ t('general_connect_on_linkedin', default='Connect on LinkedIn') | e }}">
-                        <i class="fab fa-linkedin"></i> LinkedIn
-                    </a>
-                    <a href="https://x.com/Ficore_Africa" target="_blank" rel="noopener noreferrer" aria-label="{{ t('general_follow_on_twitter', default='Follow on Twitter') | e }}">
-                        <i class="fab fa-x-twitter"></i> Twitter
-                    </a>
-                    <a href="https://facebook.com/ficoreafrica" target="_blank" rel="noopener noreferrer" aria-label="{{ t('general_follow_on_facebook', default='Follow on Facebook') | e }}">
-                        <i class="fab fa-facebook"></i> Facebook
-                    </a>
-                </div>
-            </div>
-        </footer>
+            </footer>
+        </div>
     {% endif %}
 
     <div class="modal fade" id="notificationModal" tabindex="-1" aria-labelledby="notificationModalLabel" aria-hidden="true">
@@ -405,7 +407,7 @@
             const newLangText = newLang === 'en' ? 'ENGLISH' : 'HAUSA';
             try {
                 const response = await fetch('{{ url_for("set_language", lang="") }}' + newLang, {
-                    method: h'GET',
+                    method: 'GET',
                     headers: {
                         'X-CSRFToken': getCsrfToken()
                     }
