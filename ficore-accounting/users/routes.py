@@ -613,7 +613,7 @@ def signup():
             logger.info(f"New user created and logged in: {username} (role: {role}).")
             setup_route = get_setup_wizard_route(role)
             return redirect(url_for(setup_route, lang=language))
-        except errors.PyMongoError as e:
+        except pymongo.errors.PyMongoError as e:
             logger.error(f"MongoDB error during signup for {username}: {str(e)}")
             flash(trans('general_database_error', default='An error occurred while accessing the database. Please try again later.'), 'error')
             return render_template('users/signup.html', form=form, title=trans('general_signup', lang=lang)), 500
