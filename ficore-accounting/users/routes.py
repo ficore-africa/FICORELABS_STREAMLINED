@@ -15,6 +15,7 @@ from itsdangerous import URLSafeTimedSerializer
 import pymongo.errors
 import utils
 from translations import trans
+from app import create_user, User
 
 logger = logging.getLogger(__name__)
 
@@ -561,7 +562,7 @@ def signup():
             user_data = {
                 '_id': username,
                 'email': email,
-                'password_hash': generate_password_hash(form.password.data),
+                'password': form.password.data,  # create_user will hash this
                 'role': role,
                 'ficore_credit_balance': 10.0,
                 'language': language,
@@ -574,11 +575,7 @@ def signup():
             if role == 'agent':
                 user_data['agent_details'] = {'agent_id': agent_id}
 
-            result = db.users.insert_one(user_data)
-            if not result.inserted_id:
-                flash(trans('general_database_error', default='An error occurred while creating your account. Please try again later.'), 'error')
-                logger.error(f"Failed to insert user: {username}")
-                return render_template('users/signup.html', form=form, title=trans('general_signup', lang=lang)), 500
+            user_obj = create_user(db, user_data)
 
             db.ficore_credit_transactions.insert_one({
                 'user_id': username,
@@ -595,20 +592,6 @@ def signup():
                 'timestamp': datetime.utcnow()
             })
 
-            from app import User
-            user_obj = User(
-                id=username,
-                email=email,
-                display_name=username,
-                role=role,
-                username=username,
-                is_admin=False,
-                setup_complete=False,
-                coin_balance=0,
-                ficore_credit_balance=10.0,
-                language=language,
-                dark_mode=False
-            )
             login_user(user_obj, remember=True)
             logger.info(f"New user created and logged in: {username} (role: {role}).")
             setup_route = get_setup_wizard_route(role)
@@ -617,6 +600,10 @@ def signup():
             logger.error(f"MongoDB error during signup for {username}: {str(e)}")
             flash(trans('general_database_error', default='An error occurred while accessing the database. Please try again later.'), 'error')
             return render_template('users/signup.html', form=form, title=trans('general_signup', lang=lang)), 500
+        except ValueError as e:
+            logger.error(f"Validation error during signup for {username}: {str(e)}")
+            flash(str(e), 'error')
+            return render_template('users/signup.html', form=form, title=trans('general_signup', lang=lang)), 400
         except Exception as e:
             logger.error(f"Unexpected error during signup for {username}: {str(e)}")
             flash(trans('general_error', default='An error occurred. Please try again.'), 'error')
